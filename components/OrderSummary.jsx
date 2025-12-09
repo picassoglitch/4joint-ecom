@@ -129,7 +129,7 @@ const OrderSummary = ({ totalPrice, items }) => {
                         sessionStorage.removeItem('guest_checkout_info');
                     }
                     
-                    // Load saved addresses
+                    // Load saved addresses (only if addresses table exists)
                     try {
                         const savedAddresses = await getUserAddresses(currentUser.id);
                         if (savedAddresses && savedAddresses.length > 0) {
@@ -166,7 +166,12 @@ const OrderSummary = ({ totalPrice, items }) => {
                             }
                         }
                     } catch (error) {
-                        console.error('Error loading addresses:', error);
+                        // Handle 404 error gracefully (table doesn't exist)
+                        if (error?.code === '42P01' || error?.message?.includes('does not exist') || error?.message?.includes('404')) {
+                            console.warn('Addresses table does not exist. Run migration_addresses.sql in Supabase.');
+                        } else {
+                            console.error('Error loading addresses:', error);
+                        }
                     }
                     
                     // Check if user is eligible for free 1gr (no previous orders)
@@ -498,6 +503,7 @@ const OrderSummary = ({ totalPrice, items }) => {
             }
             
             // Save address to user account if logged in and address was entered manually
+            // Only try to save if user is logged in (not for guest checkout)
             if (user && !selectedAddress && guestAddress.street) {
                 try {
                     await saveAddress({
@@ -514,7 +520,14 @@ const OrderSummary = ({ totalPrice, items }) => {
                     });
                     console.log('✅ Dirección guardada en la cuenta del usuario');
                 } catch (error) {
-                    console.error('Error saving address:', error);
+                    // Handle errors gracefully - don't fail the order
+                    if (error?.code === '42P01' || error?.message?.includes('does not exist') || error?.message?.includes('404')) {
+                        console.warn('Addresses table does not exist. Run migration_addresses.sql in Supabase. Order will continue without saving address.');
+                    } else if (error?.message?.includes('autenticado')) {
+                        console.warn('User not authenticated for address saving. Order will continue.');
+                    } else {
+                        console.error('Error saving address:', error);
+                    }
                     // Don't fail the order if address save fails
                 }
             }

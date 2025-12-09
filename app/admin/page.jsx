@@ -1,13 +1,17 @@
 'use client'
-import { dummyAdminDashboardData } from "@/assets/assets"
 import Loading from "@/components/Loading"
 import OrdersAreaChart from "@/components/OrdersAreaChart"
 import { CircleDollarSignIcon, ShoppingBasketIcon, StoreIcon, TagsIcon } from "lucide-react"
 import { useEffect, useState } from "react"
+import { getProducts, getOrders, getVendors } from "@/lib/supabase/database"
+import { getCurrentUser, isAdmin } from "@/lib/supabase/auth"
+import { useRouter } from "next/navigation"
+import toast from "react-hot-toast"
 
 export default function AdminDashboard() {
 
     const currency = 'MXN $'
+    const router = useRouter()
 
     const [loading, setLoading] = useState(true)
     const [dashboardData, setDashboardData] = useState({
@@ -33,8 +37,65 @@ export default function AdminDashboard() {
     ]
 
     const fetchDashboardData = async () => {
-        setDashboardData(dummyAdminDashboardData)
-        setLoading(false)
+        try {
+            // Check if user is admin
+            const { user } = await getCurrentUser()
+            if (!user || !isAdmin(user)) {
+                toast.error('No tienes permisos para acceder a esta página')
+                router.push('/')
+                return
+            }
+
+            // Fetch real data from Supabase
+            const [products, orders, vendors, pendingVendors] = await Promise.all([
+                getProducts(), // All products
+                getOrders(), // All orders
+                getVendors({ approved: true }), // Approved vendors
+                getVendors({ approved: false }), // Pending vendors
+            ])
+
+            // Calculate revenue from orders
+            const revenue = orders.reduce((sum, order) => sum + (parseFloat(order.total) || 0), 0)
+            
+            // Calculate total commission (15% of revenue)
+            const totalCommission = revenue * 0.15
+
+            // Format orders for chart (group by date)
+            const formattedOrders = orders.map(order => ({
+                date: new Date(order.created_at).toLocaleDateString('es-MX', { month: 'short', day: 'numeric' }),
+                revenue: parseFloat(order.total) || 0,
+                orders: 1,
+            }))
+
+            // Group by date for chart
+            const ordersByDate = {}
+            formattedOrders.forEach(order => {
+                if (!ordersByDate[order.date]) {
+                    ordersByDate[order.date] = { date: order.date, revenue: 0, orders: 0 }
+                }
+                ordersByDate[order.date].revenue += order.revenue
+                ordersByDate[order.date].orders += order.orders
+            })
+
+            const allOrders = Object.values(ordersByDate).sort((a, b) => {
+                return new Date(a.date) - new Date(b.date)
+            })
+
+            setDashboardData({
+                products: products?.length || 0,
+                revenue: revenue,
+                orders: orders?.length || 0,
+                stores: vendors?.length || 0,
+                allOrders: allOrders,
+                pendingStores: pendingVendors?.length || 0,
+                totalCommission: totalCommission,
+            })
+        } catch (error) {
+            console.error('Error fetching dashboard data:', error)
+            toast.error('Error al cargar los datos del dashboard')
+        } finally {
+            setLoading(false)
+        }
     }
 
     useEffect(() => {
