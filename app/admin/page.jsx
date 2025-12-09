@@ -61,25 +61,48 @@ export default function AdminDashboard() {
             const totalCommission = revenue * 0.15
 
             // Format orders for chart (group by date)
-            const formattedOrders = orders.map(order => ({
-                date: new Date(order.created_at).toLocaleDateString('es-MX', { month: 'short', day: 'numeric' }),
-                revenue: parseFloat(order.total) || 0,
-                orders: 1,
-            }))
+            // Filter out orders with invalid dates and format valid ones
+            const formattedOrders = orders
+                .filter(order => {
+                    // Only include orders with valid created_at dates
+                    if (!order.created_at) return false
+                    const date = new Date(order.created_at)
+                    return !isNaN(date.getTime()) // Check if date is valid
+                })
+                .map(order => {
+                    const date = new Date(order.created_at)
+                    return {
+                        date: date.toLocaleDateString('es-MX', { month: 'short', day: 'numeric' }),
+                        dateValue: date, // Keep original date for sorting
+                        revenue: parseFloat(order.total) || 0,
+                        orders: 1,
+                    }
+                })
 
             // Group by date for chart
             const ordersByDate = {}
             formattedOrders.forEach(order => {
                 if (!ordersByDate[order.date]) {
-                    ordersByDate[order.date] = { date: order.date, revenue: 0, orders: 0 }
+                    ordersByDate[order.date] = { 
+                        date: order.date, 
+                        dateValue: order.dateValue, // Keep for sorting
+                        revenue: 0, 
+                        orders: 0 
+                    }
                 }
                 ordersByDate[order.date].revenue += order.revenue
                 ordersByDate[order.date].orders += order.orders
             })
 
             const allOrders = Object.values(ordersByDate).sort((a, b) => {
-                return new Date(a.date) - new Date(b.date)
-            })
+                // Sort by original date value, not formatted string
+                return a.dateValue - b.dateValue
+            }).map(order => ({
+                // Convert to format expected by OrdersAreaChart
+                createdAt: order.dateValue.toISOString(),
+                total: order.revenue,
+                date: order.date
+            }))
 
             setDashboardData({
                 products: products?.length || 0,
