@@ -5,7 +5,8 @@ import { useEffect, useState } from "react"
 import { MailIcon, MapPinIcon } from "lucide-react"
 import Loading from "@/components/Loading"
 import Image from "next/image"
-import { dummyStoreData, productDummyData } from "@/assets/assets"
+import { getProducts } from "@/lib/supabase/database"
+import { supabase } from "@/lib/supabase/client"
 
 export default function StoreShop() {
 
@@ -15,14 +16,64 @@ export default function StoreShop() {
     const [loading, setLoading] = useState(true)
 
     const fetchStoreData = async () => {
-        setStoreInfo(dummyStoreData)
-        setProducts(productDummyData)
-        setLoading(false)
+        try {
+            // Get vendor by username
+            const { data: vendor, error: vendorError } = await supabase
+                .from('vendors')
+                .select('*')
+                .eq('username', username)
+                .eq('approved', true)
+                .single()
+
+            if (vendorError || !vendor) {
+                console.error('Error fetching vendor:', vendorError)
+                setLoading(false)
+                return
+            }
+
+            setStoreInfo({
+                id: vendor.id,
+                name: vendor.name,
+                description: vendor.description,
+                logo: vendor.logo || '/placeholder-store.png',
+                email: vendor.email,
+                address: vendor.address || 'Dirección no disponible',
+            })
+
+            // Get products from this vendor
+            const vendorProducts = await getProducts({ vendor_id: vendor.id })
+            
+            // Remove duplicates and format
+            const uniqueProducts = vendorProducts
+                .filter((product, index, self) => index === self.findIndex(p => p.id === product.id))
+                .map(product => ({
+                    id: product.id,
+                    name: product.name,
+                    description: product.description,
+                    price: parseFloat(product.price) || 0,
+                    mrp: parseFloat(product.mrp) || 0,
+                    images: Array.isArray(product.images) ? product.images : (product.images ? [product.images] : []),
+                    category: product.category || 'Sin categoría',
+                    storeId: product.vendor_id,
+                    inStock: product.in_stock !== false,
+                    createdAt: product.created_at || new Date().toISOString(),
+                    updatedAt: product.updated_at || new Date().toISOString(),
+                    variants: product.variants || [],
+                }))
+
+            setProducts(uniqueProducts)
+        } catch (error) {
+            console.error('Error fetching store data:', error)
+        } finally {
+            setLoading(false)
+        }
     }
 
     useEffect(() => {
-        fetchStoreData()
-    }, [])
+        if (username) {
+            fetchStoreData()
+        }
+    }, [username])
 
     return !loading ? (
         <div className="min-h-[70vh] mx-6">

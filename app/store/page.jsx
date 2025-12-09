@@ -1,35 +1,89 @@
 'use client'
 import { dummyStoreDashboardData } from "@/assets/assets"
 import Loading from "@/components/Loading"
-import { CircleDollarSignIcon, ShoppingBasketIcon, StarIcon, TagsIcon } from "lucide-react"
+import { CircleDollarSignIcon, ShoppingBasketIcon, StarIcon, TagsIcon, StoreIcon } from "lucide-react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
+import { getCurrentVendor } from "@/lib/supabase/database"
+import Link from "next/link"
 
 export default function Dashboard() {
 
-    const currency = process.env.NEXT_PUBLIC_CURRENCY_SYMBOL || '$'
+    const currency = 'MXN $'
 
     const router = useRouter()
 
     const [loading, setLoading] = useState(true)
+    const [hasStore, setHasStore] = useState(false)
     const [dashboardData, setDashboardData] = useState({
         totalProducts: 0,
         totalEarnings: 0,
         totalOrders: 0,
+        totalRevenue: 0,
+        totalCommission: 0,
         ratings: [],
     })
 
+    // Calculate commission (15%) and vendor earnings (85%)
+    const commissionRate = 0.15
+    const vendorEarnings = dashboardData.totalRevenue * (1 - commissionRate)
+    const platformCommission = dashboardData.totalRevenue * commissionRate
+
     const dashboardCardsData = [
-        { title: 'Total Products', value: dashboardData.totalProducts, icon: ShoppingBasketIcon },
-        { title: 'Total Earnings', value: currency + dashboardData.totalEarnings, icon: CircleDollarSignIcon },
-        { title: 'Total Orders', value: dashboardData.totalOrders, icon: TagsIcon },
-        { title: 'Total Ratings', value: dashboardData.ratings.length, icon: StarIcon },
+        { title: 'Productos Totales', value: dashboardData.totalProducts, icon: ShoppingBasketIcon },
+        { title: 'Ganancias Totales', value: currency + vendorEarnings.toLocaleString('es-MX', { minimumFractionDigits: 2 }), icon: CircleDollarSignIcon },
+        { title: 'Pedidos Totales', value: dashboardData.totalOrders, icon: TagsIcon },
+        { title: 'Calificaciones', value: dashboardData.ratings.length, icon: StarIcon },
     ]
 
     const fetchDashboardData = async () => {
-        setDashboardData(dummyStoreDashboardData)
-        setLoading(false)
+        try {
+            // Check if vendor has a store
+            const vendor = await getCurrentVendor()
+            setHasStore(!!vendor)
+
+            if (!vendor) {
+                setLoading(false)
+                return
+            }
+
+            const { getProducts, getOrders } = await import('@/lib/supabase/database')
+            const { getCurrentUser } = await import('@/lib/supabase/auth')
+            
+            const { user } = await getCurrentUser()
+            if (!user) {
+                setLoading(false)
+                return
+            }
+
+            // Get vendor's products
+            const products = await getProducts({ vendor_id: user.id })
+            
+            // Get vendor's orders
+            const orders = await getOrders({ vendor_id: user.id })
+            
+            // Calculate total revenue
+            const totalRevenue = orders.reduce((sum, order) => sum + parseFloat(order.total || 0), 0)
+            
+            // For ratings, we'll use empty array for now (can be enhanced later)
+            const ratings = []
+
+            setDashboardData({
+                totalProducts: products.length,
+                totalEarnings: totalRevenue * 0.85, // 85% after commission
+                totalOrders: orders.length,
+                totalRevenue: totalRevenue,
+                totalCommission: totalRevenue * 0.15,
+                ratings: ratings,
+            })
+        } catch (error) {
+            console.error('Error fetching dashboard data:', error)
+            // Fallback to dummy data on error
+            setDashboardData(dummyStoreDashboardData)
+        } finally {
+            setLoading(false)
+        }
     }
 
     useEffect(() => {
@@ -38,25 +92,72 @@ export default function Dashboard() {
 
     if (loading) return <Loading />
 
+    // Show create store prompt if vendor doesn't have a store
+    if (!hasStore) {
+        return (
+            <div className="text-[#1A1A1A]/70 mb-28">
+                <h1 className="text-2xl mb-6">Panel de <span className="text-[#1A1A1A] font-bold">Vendedor</span></h1>
+                
+                <div className="bg-gradient-to-br from-[#00C6A2]/10 to-[#FFD95E]/10 border-2 border-[#00C6A2]/30 rounded-3xl p-8 max-w-2xl">
+                    <div className="flex flex-col items-center text-center gap-4">
+                        <div className="bg-[#00C6A2]/20 p-4 rounded-full">
+                            <StoreIcon size={48} className="text-[#00C6A2]" />
+                        </div>
+                        <h2 className="text-2xl font-bold text-[#1A1A1A]">¡Crea tu Tienda!</h2>
+                        <p className="text-[#1A1A1A]/70 max-w-md">
+                            Para comenzar a vender en 4joint, necesitas crear tu tienda primero. 
+                            Completa el formulario con la información de tu tienda y espera la aprobación del administrador.
+                        </p>
+                        <Link
+                            href="/create-store"
+                            className="mt-4 px-8 py-3 bg-[#00C6A2] hover:bg-[#00B894] text-white rounded-full font-semibold transition-all hover:scale-105 active:scale-95 shadow-lg"
+                        >
+                            Ir a Crear Tienda
+                        </Link>
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
     return (
-        <div className=" text-slate-500 mb-28">
-            <h1 className="text-2xl">Seller <span className="text-slate-800 font-medium">Dashboard</span></h1>
+        <div className="text-[#1A1A1A]/70 mb-28">
+            <h1 className="text-2xl">Panel de <span className="text-[#1A1A1A] font-bold">Vendedor</span></h1>
 
             <div className="flex flex-wrap gap-5 my-10 mt-4">
                 {
                     dashboardCardsData.map((card, index) => (
-                        <div key={index} className="flex items-center gap-11 border border-slate-200 p-3 px-6 rounded-lg">
+                        <div key={index} className="flex items-center gap-11 border border-[#00C6A2]/20 bg-white/80 backdrop-blur-sm p-4 px-6 rounded-2xl shadow-sm hover:shadow-md transition-all">
                             <div className="flex flex-col gap-3 text-xs">
-                                <p>{card.title}</p>
-                                <b className="text-2xl font-medium text-slate-700">{card.value}</b>
+                                <p className="text-[#1A1A1A]/60">{card.title}</p>
+                                <b className="text-2xl font-bold text-[#1A1A1A]">{card.value}</b>
                             </div>
-                            <card.icon size={50} className=" w-11 h-11 p-2.5 text-slate-400 bg-slate-100 rounded-full" />
+                            <card.icon size={50} className="w-11 h-11 p-2.5 text-[#00C6A2] bg-[#00C6A2]/10 rounded-full" />
                         </div>
                     ))
                 }
             </div>
 
-            <h2>Total Reviews</h2>
+            {/* Commission Calculator */}
+            <div className="bg-gradient-to-br from-[#00C6A2]/10 to-[#FFD95E]/10 border border-[#00C6A2]/20 rounded-2xl p-6 mb-8 shadow-sm">
+                <h2 className="text-xl font-bold text-[#1A1A1A] mb-4">Calculadora de Comisiones</h2>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-white/80 rounded-xl p-4 border border-[#00C6A2]/20">
+                        <p className="text-sm text-[#1A1A1A]/60 mb-1">Ingresos Totales</p>
+                        <p className="text-2xl font-bold text-[#1A1A1A]">{currency}{dashboardData.totalRevenue.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
+                    </div>
+                    <div className="bg-white/80 rounded-xl p-4 border border-[#FFD95E]/20">
+                        <p className="text-sm text-[#1A1A1A]/60 mb-1">Comisión Plataforma (15%)</p>
+                        <p className="text-2xl font-bold text-[#FFD95E]">{currency}{platformCommission.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
+                    </div>
+                    <div className="bg-white/80 rounded-xl p-4 border border-[#00C6A2]/30">
+                        <p className="text-sm text-[#1A1A1A]/60 mb-1">Tus Ganancias (85%)</p>
+                        <p className="text-2xl font-bold text-[#00C6A2]">{currency}{vendorEarnings.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
+                    </div>
+                </div>
+            </div>
+
+            <h2 className="text-xl font-bold text-[#1A1A1A] mb-4">Reseñas Totales</h2>
 
             <div className="mt-5">
                 {
@@ -82,7 +183,7 @@ export default function Dashboard() {
                                         ))}
                                     </div>
                                 </div>
-                                <button onClick={() => router.push(`/product/${review.product.id}`)} className="bg-slate-100 px-5 py-2 hover:bg-slate-200 rounded transition-all">View Product</button>
+                                <button onClick={() => router.push(`/product/${review.product.id}`)} className="bg-[#00C6A2]/10 hover:bg-[#00C6A2]/20 text-[#00C6A2] px-5 py-2 rounded-full transition-all font-semibold">Ver Producto</button>
                             </div>
                         </div>
                     ))

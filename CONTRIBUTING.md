@@ -1,6 +1,6 @@
-# Contributing to GoCart
+# Contribuir a 4joint
 
-Thank you for considering contributing to **GoCart**!
+¡Gracias por considerar contribuir a **4joint**!
 We welcome contributions from everyone, whether it's fixing a bug, adding a new feature, or optimizing the codebase.
 
 ---

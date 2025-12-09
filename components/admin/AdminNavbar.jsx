@@ -5,15 +5,15 @@ const AdminNavbar = () => {
 
 
     return (
-        <div className="flex items-center justify-between px-12 py-3 border-b border-slate-200 transition-all">
-            <Link href="/" className="relative text-4xl font-semibold text-slate-700">
-                <span className="text-green-600">go</span>cart<span className="text-green-600 text-5xl leading-0">.</span>
-                <p className="absolute text-xs font-semibold -top-1 -right-13 px-3 p-0.5 rounded-full flex items-center gap-2 text-white bg-green-500">
+        <div className="flex items-center justify-between px-12 py-3 border-b border-[#00C6A2]/20 transition-all bg-[#FAFAF6]">
+            <Link href="/" className="relative text-4xl font-bold text-[#1A1A1A]">
+                <span className="text-[#00C6A2]">4</span>joint
+                <span className="absolute text-xs font-semibold -top-1 -right-8 px-2 py-0.5 rounded-full flex items-center gap-1 text-white bg-[#00C6A2]">
                     Admin
-                </p>
+                </span>
             </Link>
             <div className="flex items-center gap-3">
-                <p>Hi, Admin</p>
+                <p className="text-[#1A1A1A]/70">Panel de Administración</p>
             </div>
         </div>
     )

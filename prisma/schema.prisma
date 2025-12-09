@@ -70,6 +70,8 @@ model Order {
     updatedAt     DateTime      @updatedAt
     isCouponUsed  Boolean       @default(false)
     coupon        Json          @default("{}")
+    commission    Float         @default(0) // 15% commission for platform
+    vendorEarnings Float         @default(0) // 85% earnings for vendor
     orderItems    OrderItem[]
 
     // Relations

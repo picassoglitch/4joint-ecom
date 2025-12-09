@@ -1,0 +1,47 @@
+{
+  "common": {
+    "store": "Tienda",
+    "vendors": "Vendedores",
+    "cart": "Carrito",
+    "checkout": "Pagar",
+    "home": "Inicio",
+    "about": "Acerca",
+    "contact": "Contacto",
+    "search": "Buscar productos",
+    "login": "Iniciar Sesión",
+    "currency": "MXN $"
+  },
+  "ageGate": {
+    "title": "¿Eres mayor de 18?",
+    "description": "Confirma para entrar al mercado 420.",
+    "yes": "Sí, entrar",
+    "no": "No, salir"
+  },
+  "footer": {
+    "disclaimer": "Productos hemp/CBD legales en México. Mayores de 18+.",
+    "copyright": "Copyright 2025 © 4joint Todos los derechos reservados."
+  },
+  "admin": {
+    "dashboard": "Panel de Administración",
+    "totalProducts": "Productos Totales",
+    "totalRevenue": "Ingresos Totales",
+    "totalOrders": "Pedidos Totales",
+    "totalStores": "Tiendas Totales",
+    "commission": "Comisiones (15%)",
+    "pendingStores": "Tiendas Pendientes",
+    "analytics": "Análisis de Pedidos"
+  },
+  "vendor": {
+    "dashboard": "Panel de Vendedor",
+    "totalProducts": "Productos Totales",
+    "totalEarnings": "Ganancias Totales",
+    "totalOrders": "Pedidos Totales",
+    "ratings": "Calificaciones",
+    "commissionCalculator": "Calculadora de Comisiones",
+    "totalRevenue": "Ingresos Totales",
+    "platformCommission": "Comisión Plataforma (15%)",
+    "yourEarnings": "Tus Ganancias (85%)",
+    "allReviews": "Reseñas Totales"
+  }
+}
+

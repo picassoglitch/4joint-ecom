@@ -28,7 +28,7 @@ export const assets = {
     product_img7, product_img8, product_img9, product_img10, product_img11, product_img12,
 }
 
-export const categories = ["Headphones", "Speakers", "Watch", "Earbuds", "Mouse", "Decoration"];
+export const categories = ["Aceite CBD", "Bongs", "Gominolas", "Vaporizadores", "Papel para Joints", "Accesorios"];
 
 export const dummyRatingsData = [
     { id: "rat_1", rating: 4.2, review: "I was a bit skeptical at first, but this product turned out to be even better than I imagined. The quality feels premium, it's easy to use, and it delivers exactly what was promised. I've already recommended it to friends and will definitely purchase again in the future.", user: { name: 'Kristin Watson', image: profile_pic1 }, productId: "prod_1", createdAt: 'Sat Jul 19 2025 14:51:25 GMT+0530 (India Standard Time)', updatedAt: 'Sat Jul 19 2025 14:51:25 GMT+0530 (India Standard Time)', product: { name: 'Bluetooth Speakers', category:'Electronics', id:'prod_1'} },
@@ -64,12 +64,12 @@ export const dummyStoreData = {
 export const productDummyData = [
     {
         id: "prod_1",
-        name: "Modern table lamp",
-        description: "Modern table lamp with a sleek design. It's perfect for any room. It's made of high-quality materials and comes with a lifetime warranty. Enhance your audio experience with this earbuds. Indulge yourself in a world of pure sound with 50 hours of uninterrupted playtime. Equipped with the cutting-edge Zen Mode Tech ENC and BoomX Tech, prepare to be enthralled by a symphony of crystal-clear melodies.",
-        mrp: 40,
-        price: 29,
+        name: "Aceite CBD 10%",
+        description: "Aceite de CBD de alta calidad con 10% de concentración. Producto legal en México, elaborado con cáñamo industrial. Perfecto para relajación y bienestar. Sin THC, 100% legal. Envase de 30ml con gotero incluido.",
+        mrp: 899,
+        price: 699,
         images: [product_img1, product_img2, product_img3, product_img4],
-        category: "Decoration",
+        category: "Aceite CBD",
         storeId: "seller_1",
         inStock: true,
         store: dummyStoreData,
@@ -79,6 +79,81 @@ export const productDummyData = [
     },
     {
         id: "prod_2",
+        name: "Bong de Vidrio",
+        description: "Bong de vidrio borosilicato de alta calidad. Diseño ergonómico con difusor de burbujas para una experiencia suave. Incluye bowl y downstem. Perfecto para uso con productos legales de cáñamo.",
+        mrp: 599,
+        price: 449,
+        images: [product_img2],
+        storeId: "seller_1",
+        inStock: true,
+        store: dummyStoreData,
+        category: "Bongs",
+        rating: dummyRatingsData,
+        createdAt: 'Sat Jul 28 2025 14:51:25 GMT+0530 (India Standard Time)',
+        updatedAt: 'Sat Jul 28 2025 14:51:25 GMT+0530 (India Standard Time)',
+    },
+    {
+        id: "prod_3",
+        name: "Gominolas Hemp",
+        description: "Gominolas de cáñamo con sabor natural. Cada gomita contiene 25mg de CBD. Pack de 30 unidades. Producto vegano, sin azúcar añadida. Perfecto para consumo diario de CBD de forma deliciosa.",
+        mrp: 499,
+        price: 399,
+        images: [product_img3],
+        storeId: "seller_1",
+        inStock: true,
+        store: dummyStoreData,
+        category: "Gominolas",
+        rating: dummyRatingsData,
+        createdAt: 'Sat Jul 27 2025 14:51:25 GMT+0530 (India Standard Time)',
+        updatedAt: 'Sat Jul 27 2025 14:51:25 GMT+0530 (India Standard Time)',
+    },
+    {
+        id: "prod_4",
+        name: "Papel para Joints",
+        description: "Papel para enrollar de alta calidad, ultra delgado y natural. Pack de 50 hojas. Quema lenta y uniforme. Sin blanqueadores ni aditivos químicos. Ideal para productos de cáñamo legal.",
+        mrp: 99,
+        price: 79,
+        images: [product_img4],
+        storeId: "seller_1",
+        inStock: true,
+        store: dummyStoreData,
+        category: "Papel para Joints",
+        rating: dummyRatingsData,
+        createdAt: 'Sat Jul 26 2025 14:51:25 GMT+0530 (India Standard Time)',
+        updatedAt: 'Sat Jul 26 2025 14:51:25 GMT+0530 (India Standard Time)',
+    },
+    {
+        id: "prod_5",
+        name: "Vaporizador Portátil",
+        description: "Vaporizador portátil de última generación. Calentamiento por convección para sabor puro. Batería de larga duración. Pantalla OLED. Compatible con extractos de CBD y flores de cáñamo legal.",
+        mrp: 2499,
+        price: 1999,
+        images: [product_img5],
+        storeId: "seller_1",
+        inStock: true,
+        store: dummyStoreData,
+        category: "Vaporizadores",
+        rating: dummyRatingsData,
+        createdAt: 'Sat Jul 25 2025 14:51:25 GMT+0530 (India Standard Time)',
+        updatedAt: 'Sat Jul 25 2025 14:51:25 GMT+0530 (India Standard Time)',
+    },
+    {
+        id: "prod_6",
+        name: "Modern table lamp",
+        description: "Modern table lamp with a sleek design. It's perfect for any room. It's made of high-quality materials and comes with a lifetime warranty.",
+        mrp: 40,
+        price: 29,
+        images: [product_img6],
+        storeId: "seller_1",
+        inStock: true,
+        store: dummyStoreData,
+        category: "Decoration",
+        rating: dummyRatingsData,
+        createdAt: 'Sat Jul 25 2025 14:51:25 GMT+0530 (India Standard Time)',
+        updatedAt: 'Sat Jul 25 2025 14:51:25 GMT+0530 (India Standard Time)',
+    },
+    {
+        id: "prod_13",
         name: "Smart speaker gray",
         description: "Smart speaker with a sleek design. It's perfect for any room. It's made of high-quality materials and comes with a lifetime warranty.",
         mrp: 50,
@@ -93,7 +168,7 @@ export const productDummyData = [
         updatedAt: 'Sat Jul 28 2025 14:51:25 GMT+0530 (India Standard Time)',
     },
     {
-        id: "prod_3",
+        id: "prod_14",
         name: "Smart watch white",
         description: "Smart watch with a sleek design. It's perfect for any room. It's made of high-quality materials and comes with a lifetime warranty.",
         mrp: 60,
@@ -108,7 +183,7 @@ export const productDummyData = [
         updatedAt: 'Sat Jul 27 2025 14:51:25 GMT+0530 (India Standard Time)',
     },
     {
-        id: "prod_4",
+        id: "prod_15",
         name: "Wireless headphones",
         description: "Wireless headphones with a sleek design. It's perfect for any room. It's made of high-quality materials and comes with a lifetime warranty.",
         mrp: 70,
@@ -123,7 +198,7 @@ export const productDummyData = [
         updatedAt: 'Sat Jul 26 2025 14:51:25 GMT+0530 (India Standard Time)',
     },
     {
-        id: "prod_5",
+        id: "prod_16",
         name: "Smart watch black",
         description: "Smart watch with a sleek design. It's perfect for any room. It's made of high-quality materials and comes with a lifetime warranty.",
         mrp: 49,
@@ -138,7 +213,7 @@ export const productDummyData = [
         updatedAt: 'Sat Jul 25 2025 14:51:25 GMT+0530 (India Standard Time)',
     },
     {
-        id: "prod_6",
+        id: "prod_17",
         name: "Security Camera",
         description: "Security Camera with a sleek design. It's perfect for any room. It's made of high-quality materials and comes with a lifetime warranty.",
         mrp: 59,
@@ -245,9 +320,8 @@ export const productDummyData = [
 ];
 
 export const ourSpecsData = [
-    { title: "Free Shipping", description: "Enjoy fast, free delivery on every order no conditions, just reliable doorstep.", icon: SendIcon, accent: '#05DF72' },
-    { title: "7 Days easy Return", description: "Change your mind? No worries. Return any item within 7 days.", icon: ClockFadingIcon, accent: '#FF8904' },
-    { title: "24/7 Customer Support", description: "We're here for you. Get expert help with our customer support.", icon: HeadsetIcon, accent: '#A684FF' }
+    { title: "Envío Gratis", description: "Disfruta de envío gratis en pedidos mayores a $800 MXN. Entrega rápida y confiable hasta tu puerta.", icon: SendIcon, accent: '#05DF72' },
+    { title: "Calidad Garantizada", description: "Productos de la más alta calidad. Garantizamos la satisfacción en cada compra.", icon: ClockFadingIcon, accent: '#FF8904' }
 ]
 
 export const addressDummyData = {
@@ -388,5 +462,6 @@ export const dummyStoreDashboardData = {
     "ratings": dummyRatingsData,
     "totalOrders": 2,
     "totalEarnings": 636,
-    "totalProducts": 5
+    "totalProducts": 5,
+    "totalRevenue": 748.24 // Total revenue before commission
 }
