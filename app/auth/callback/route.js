@@ -51,6 +51,9 @@ export async function GET(request) {
           maxAge,
           path: '/',
         })
+
+        // Also update the client-side session
+        // The client will detect the session from the URL hash on page load
       }
     } catch (error) {
       console.error('Unexpected error in auth callback:', error)

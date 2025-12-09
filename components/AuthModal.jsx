@@ -66,9 +66,22 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
   const handleGoogleAuth = async () => {
     setLoading(true)
     try {
-      const { error } = await signInWithGoogle()
-      if (error) throw error
+      const { data, error } = await signInWithGoogle()
+      if (error) {
+        console.error('Google OAuth error:', error)
+        toast.error(error.message || 'Error al autenticar con Google')
+        setLoading(false)
+        return
+      }
+      
+      // If successful, signInWithOAuth returns a URL and Supabase will redirect
+      // The redirect happens automatically via window.location
+      // Set a timeout to reset loading in case redirect doesn't happen
+      setTimeout(() => {
+        setLoading(false)
+      }, 2000)
     } catch (error) {
+      console.error('Google auth error:', error)
       toast.error(error.message || 'Error al autenticar con Google')
       setLoading(false)
     }
