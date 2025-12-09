@@ -35,14 +35,34 @@ const OrderSummary = ({ totalPrice, items }) => {
     const [guestName, setGuestName] = useState('');
     const [guestPhone, setGuestPhone] = useState('');
     
-    // Address fields for guests
-    const [guestAddress, setGuestAddress] = useState({
-        street: '',
-        city: '',
-        state: '',
-        zip: '',
-        references: '',
-        country: 'México'
+    // Address fields for guests (temporary, stored in sessionStorage)
+    const [guestAddress, setGuestAddress] = useState(() => {
+        // Try to load from sessionStorage on mount
+        if (typeof window !== 'undefined') {
+            const saved = sessionStorage.getItem('guest_checkout_address');
+            if (saved) {
+                try {
+                    return JSON.parse(saved);
+                } catch (e) {
+                    return {
+                        street: '',
+                        city: '',
+                        state: '',
+                        zip: '',
+                        references: '',
+                        country: 'México'
+                    };
+                }
+            }
+        }
+        return {
+            street: '',
+            city: '',
+            state: '',
+            zip: '',
+            references: '',
+            country: 'México'
+        };
     });
     
     // Delivery options
@@ -73,6 +93,26 @@ const OrderSummary = ({ totalPrice, items }) => {
     // Check if user is eligible for free 1gr (first order)
     const [isEligibleForFreeGram, setIsEligibleForFreeGram] = useState(false);
     
+    // Save guest address to sessionStorage whenever it changes (only for non-logged users)
+    useEffect(() => {
+        if (!user && typeof window !== 'undefined') {
+            // Save guest address temporarily to sessionStorage
+            sessionStorage.setItem('guest_checkout_address', JSON.stringify(guestAddress));
+        }
+    }, [guestAddress, user]);
+
+    // Save guest contact info to sessionStorage
+    useEffect(() => {
+        if (!user && typeof window !== 'undefined') {
+            const guestInfo = {
+                name: guestName,
+                email: guestEmail,
+                phone: guestPhone
+            };
+            sessionStorage.setItem('guest_checkout_info', JSON.stringify(guestInfo));
+        }
+    }, [guestName, guestEmail, guestPhone, user]);
+
     // Check if user is logged in and load saved addresses
     useEffect(() => {
         const checkUser = async () => {
@@ -82,6 +122,12 @@ const OrderSummary = ({ totalPrice, items }) => {
                 if (currentUser) {
                     setGuestEmail(currentUser.email || '');
                     setGuestName(currentUser.user_metadata?.full_name || currentUser.email || '');
+                    
+                    // Clear sessionStorage when user logs in
+                    if (typeof window !== 'undefined') {
+                        sessionStorage.removeItem('guest_checkout_address');
+                        sessionStorage.removeItem('guest_checkout_info');
+                    }
                     
                     // Load saved addresses
                     try {
@@ -133,6 +179,20 @@ const OrderSummary = ({ totalPrice, items }) => {
                         setIsEligibleForFreeGram(false);
                     }
                 } else {
+                    // Load guest info from sessionStorage if available
+                    if (typeof window !== 'undefined') {
+                        const savedInfo = sessionStorage.getItem('guest_checkout_info');
+                        if (savedInfo) {
+                            try {
+                                const info = JSON.parse(savedInfo);
+                                if (info.name) setGuestName(info.name);
+                                if (info.email) setGuestEmail(info.email);
+                                if (info.phone) setGuestPhone(info.phone);
+                            } catch (e) {
+                                // Ignore parse errors
+                            }
+                        }
+                    }
                     setIsEligibleForFreeGram(false);
                 }
             } catch (error) {
@@ -457,6 +517,12 @@ const OrderSummary = ({ totalPrice, items }) => {
                     console.error('Error saving address:', error);
                     // Don't fail the order if address save fails
                 }
+            }
+            
+            // Clear guest checkout data from sessionStorage after successful order
+            if (!user && typeof window !== 'undefined') {
+                sessionStorage.removeItem('guest_checkout_address');
+                sessionStorage.removeItem('guest_checkout_info');
             }
             
             // For COD, clear cart and show success

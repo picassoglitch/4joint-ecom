@@ -21,6 +21,13 @@ function PaymentSuccessContent() {
         // Clear cart when payment is successful
         if (status === 'approved' && paymentId) {
             dispatch(clearCart())
+            
+            // Clear guest checkout data from sessionStorage after successful payment
+            if (typeof window !== 'undefined') {
+                sessionStorage.removeItem('guest_checkout_address')
+                sessionStorage.removeItem('guest_checkout_info')
+            }
+            
             setLoading(false)
         } else {
             setLoading(false)
