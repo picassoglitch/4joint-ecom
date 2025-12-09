@@ -52,10 +52,8 @@ const Hero = () => {
                             <button className='bg-[#00C6A2] hover:bg-[#00B894] text-white text-sm font-semibold py-2.5 px-7 sm:py-5 sm:px-12 mt-4 sm:mt-10 rounded-full hover:scale-105 active:scale-95 transition-all shadow-lg hover:shadow-xl'>VER MÁS</button>
                         </Link>
                     </div>
-                    {heroConfig.bannerImage ? (
+                    {heroConfig.bannerImage && heroConfig.bannerImage.trim() !== '' && (
                         <Image className='sm:absolute bottom-0 right-0 md:right-10 w-full sm:max-w-sm opacity-90' src={heroConfig.bannerImage} alt="" width={400} height={400} />
-                    ) : (
-                        <Image className='sm:absolute bottom-0 right-0 md:right-10 w-full sm:max-w-sm opacity-90' src={assets.hero_model_img} alt="" />
                     )}
                 </div>
             </div>

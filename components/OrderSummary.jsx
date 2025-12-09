@@ -129,10 +129,13 @@ const OrderSummary = ({ totalPrice, items }) => {
                         sessionStorage.removeItem('guest_checkout_info');
                     }
                     
-                    // Load saved addresses (only if addresses table exists)
+                    // Load saved addresses (only if addresses table exists and user has valid ID)
                     try {
-                        const savedAddresses = await getUserAddresses(currentUser.id);
-                        if (savedAddresses && savedAddresses.length > 0) {
+                        if (!currentUser.id) {
+                            console.warn('User ID is missing, skipping address load');
+                        } else {
+                            const savedAddresses = await getUserAddresses(currentUser.id);
+                            if (savedAddresses && savedAddresses.length > 0) {
                             // Update Redux store with saved addresses
                             savedAddresses.forEach(addr => {
                                 dispatch(addAddress({
