@@ -572,7 +572,7 @@ const OrderSummary = ({ totalPrice, items }) => {
                     if (!verifiedUser) {
                         console.warn('User session not established yet. Skipping address save.');
                     } else {
-                        await saveAddress({
+                        const savedAddress = await saveAddress({
                             name: guestName || verifiedUser.user_metadata?.full_name || verifiedUser.email,
                             email: guestEmail || verifiedUser.email,
                             street: guestAddress.street,
@@ -584,16 +584,19 @@ const OrderSummary = ({ totalPrice, items }) => {
                             references: guestAddress.references,
                             is_default: true, // Set as default if it's the first address
                         });
-                        console.log('✅ Dirección guardada en la cuenta del usuario');
+                        
+                        if (savedAddress) {
+                            console.log('✅ Dirección guardada en la cuenta del usuario');
+                        } else {
+                            console.warn('Address could not be saved (no session). User can add it later.');
+                        }
                     }
                 } catch (error) {
                     // Handle errors gracefully - don't fail the order
                     if (error?.isTableNotFound || error?.code === 'PGRST205' || error?.code === '42P01' || error?.message?.includes('does not exist') || error?.message?.includes('404') || error?.message?.includes('Could not find the table')) {
                         console.warn('Addresses table does not exist. Run migration_addresses.sql in Supabase. Order will continue without saving address.');
-                    } else if (error?.message?.includes('autenticado') || error?.message?.includes('Usuario debe estar autenticado')) {
-                        console.warn('User not authenticated for address saving. Order will continue. This is normal for auto-registered users.');
                     } else {
-                        console.error('Error saving address:', error);
+                        console.warn('Error saving address (non-critical):', error?.message || error);
                     }
                     // Don't fail the order if address save fails - this is a non-critical operation
                 }

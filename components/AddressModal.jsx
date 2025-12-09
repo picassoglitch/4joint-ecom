@@ -71,6 +71,12 @@ const AddressModal = ({ setShowAddressModal }) => {
                 references: address.references,
             });
             
+            if (!savedAddress) {
+                // No session available - address was not saved
+                toast.error('No se pudo guardar la dirección. Por favor, inicia sesión e intenta de nuevo.');
+                return;
+            }
+            
             // Add address to Redux store with real ID
             dispatch(addAddress({
                 id: savedAddress.id,
@@ -93,8 +99,6 @@ const AddressModal = ({ setShowAddressModal }) => {
             // Handle specific error cases
             if (error?.isTableNotFound || error?.code === 'PGRST205' || error?.code === '42P01' || error?.message?.includes('does not exist') || error?.message?.includes('Could not find the table')) {
                 toast.error('La tabla de direcciones no existe. Ejecuta la migración migration_addresses.sql en Supabase.');
-            } else if (error?.message?.includes('autenticado') || error?.message?.includes('Usuario debe estar autenticado')) {
-                toast.error('Debes iniciar sesión para guardar direcciones');
             } else {
                 toast.error(error?.message || 'Error al guardar la dirección. Intenta de nuevo.');
             }
