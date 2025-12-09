@@ -58,6 +58,12 @@ const AddressModal = ({ setShowAddressModal }) => {
             return;
         }
 
+        // Check if user is logged in
+        if (!user) {
+            toast.error('Debes iniciar sesión para guardar direcciones');
+            return;
+        }
+
         // Save address to Supabase
         try {
             const savedAddress = await saveAddress({
@@ -83,7 +89,15 @@ const AddressModal = ({ setShowAddressModal }) => {
             setShowAddressModal(false);
         } catch (error) {
             console.error('Error saving address:', error);
-            toast.error('Error al guardar la dirección. Intenta de nuevo.');
+            
+            // Handle specific error cases
+            if (error?.isTableNotFound || error?.code === 'PGRST205' || error?.code === '42P01' || error?.message?.includes('does not exist') || error?.message?.includes('Could not find the table')) {
+                toast.error('La tabla de direcciones no existe. Ejecuta la migración migration_addresses.sql en Supabase.');
+            } else if (error?.message?.includes('autenticado') || error?.message?.includes('Usuario debe estar autenticado')) {
+                toast.error('Debes iniciar sesión para guardar direcciones');
+            } else {
+                toast.error(error?.message || 'Error al guardar la dirección. Intenta de nuevo.');
+            }
         }
     }
 
