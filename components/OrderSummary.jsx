@@ -172,6 +172,8 @@ const OrderSummary = ({ totalPrice, items }) => {
                         // Handle 404 error gracefully (table doesn't exist)
                         if (error?.code === '42P01' || error?.message?.includes('does not exist') || error?.message?.includes('404')) {
                             console.warn('Addresses table does not exist. Run migration_addresses.sql in Supabase.');
+                        } else if (error?.code === '22P02' || error?.message?.includes('invalid input syntax for type uuid')) {
+                            console.warn('Invalid UUID format for user_id. Skipping address load.');
                         } else {
                             console.error('Error loading addresses:', error);
                         }
