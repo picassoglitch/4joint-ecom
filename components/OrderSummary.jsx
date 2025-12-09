@@ -6,7 +6,7 @@ import { addAddress } from '@/lib/features/address/addressSlice';
 import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
 import { createOrder, createOrderItems } from '@/lib/supabase/database';
-import { getCurrentUser } from '@/lib/supabase/auth';
+import { getCurrentUser, autoRegisterUser } from '@/lib/supabase/auth';
 import { clearCart } from '@/lib/features/cart/cartSlice';
 import { saveAddress, getUserAddresses } from '@/lib/supabase/addresses';
 
