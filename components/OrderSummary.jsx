@@ -551,27 +551,34 @@ const OrderSummary = ({ totalPrice, items }) => {
             // Save address to user account if logged in and address was entered manually
             // Only try to save if user is logged in (not for guest checkout)
             // IMPORTANT: This should NEVER run for guest users - only for logged-in users
+            // Also verify that session is actually established before trying to save
             if (user && !selectedAddress && guestAddress.street) {
                 try {
-                    await saveAddress({
-                        name: guestName || user.user_metadata?.full_name || user.email,
-                        email: guestEmail || user.email,
-                        street: guestAddress.street,
-                        city: guestAddress.city,
-                        state: guestAddress.state,
-                        zip: guestAddress.zip,
-                        country: guestAddress.country || 'México',
-                        phone: guestPhone,
-                        references: guestAddress.references,
-                        is_default: true, // Set as default if it's the first address
-                    });
-                    console.log('✅ Dirección guardada en la cuenta del usuario');
+                    // Double-check that user session is actually established
+                    const { user: verifiedUser } = await getCurrentUser();
+                    if (!verifiedUser) {
+                        console.warn('User session not established yet. Skipping address save.');
+                    } else {
+                        await saveAddress({
+                            name: guestName || verifiedUser.user_metadata?.full_name || verifiedUser.email,
+                            email: guestEmail || verifiedUser.email,
+                            street: guestAddress.street,
+                            city: guestAddress.city,
+                            state: guestAddress.state,
+                            zip: guestAddress.zip,
+                            country: guestAddress.country || 'México',
+                            phone: guestPhone,
+                            references: guestAddress.references,
+                            is_default: true, // Set as default if it's the first address
+                        });
+                        console.log('✅ Dirección guardada en la cuenta del usuario');
+                    }
                 } catch (error) {
                     // Handle errors gracefully - don't fail the order
                     if (error?.isTableNotFound || error?.code === 'PGRST205' || error?.code === '42P01' || error?.message?.includes('does not exist') || error?.message?.includes('404') || error?.message?.includes('Could not find the table')) {
                         console.warn('Addresses table does not exist. Run migration_addresses.sql in Supabase. Order will continue without saving address.');
                     } else if (error?.message?.includes('autenticado') || error?.message?.includes('Usuario debe estar autenticado')) {
-                        console.warn('User not authenticated for address saving. Order will continue.');
+                        console.warn('User not authenticated for address saving. Order will continue. This is normal for auto-registered users.');
                     } else {
                         console.error('Error saving address:', error);
                     }
