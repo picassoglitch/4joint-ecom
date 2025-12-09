@@ -6,6 +6,9 @@ import Link from 'next/link'
 import { useDispatch } from 'react-redux'
 import { clearCart } from '@/lib/features/cart/cartSlice'
 
+// Force dynamic rendering
+export const dynamic = 'force-dynamic'
+
 export default function PaymentSuccess() {
     const searchParams = useSearchParams()
     const router = useRouter()

@@ -2,6 +2,9 @@
 import { XCircle } from 'lucide-react'
 import Link from 'next/link'
 
+// Force dynamic rendering
+export const dynamic = 'force-dynamic'
+
 export default function PaymentFailure() {
     return (
         <div className="min-h-screen flex items-center justify-center bg-[#FAFAF6]">

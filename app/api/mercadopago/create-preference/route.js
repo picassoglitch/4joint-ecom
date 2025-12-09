@@ -1,23 +1,14 @@
 import { NextResponse } from 'next/server';
 import { MercadoPagoConfig, Preference } from 'mercadopago';
 
-// Validate access token
-if (!process.env.MERCADOPAGO_ACCESS_TOKEN) {
-  console.error('⚠️ MERCADOPAGO_ACCESS_TOKEN no está configurado en las variables de entorno');
-}
-
-const client = new MercadoPagoConfig({
-  accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN,
-  options: {
-    timeout: 5000,
-    idempotencyKey: 'abc'
-  }
-});
+// Force dynamic rendering
+export const dynamic = 'force-dynamic';
 
 export async function POST(request) {
   try {
     // Validate access token is configured
     if (!process.env.MERCADOPAGO_ACCESS_TOKEN) {
+      console.error('⚠️ MERCADOPAGO_ACCESS_TOKEN no está configurado en las variables de entorno');
       return NextResponse.json(
         { 
           error: 'Mercado Pago no está configurado. Verifica MERCADOPAGO_ACCESS_TOKEN en .env.local',
@@ -26,6 +17,15 @@ export async function POST(request) {
         { status: 500 }
       );
     }
+
+    // Initialize client inside the function to avoid build-time errors
+    const client = new MercadoPagoConfig({
+      accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN,
+      options: {
+        timeout: 5000,
+        idempotencyKey: 'abc'
+      }
+    });
 
     const body = await request.json();
     const { items, orderId, payer } = body;
