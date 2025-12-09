@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { CheckCircle } from 'lucide-react'
 import Link from 'next/link'
@@ -9,7 +9,7 @@ import { clearCart } from '@/lib/features/cart/cartSlice'
 // Force dynamic rendering
 export const dynamic = 'force-dynamic'
 
-export default function PaymentSuccess() {
+function PaymentSuccessContent() {
     const searchParams = useSearchParams()
     const router = useRouter()
     const dispatch = useDispatch()
@@ -79,6 +79,18 @@ export default function PaymentSuccess() {
                 )}
             </div>
         </div>
+    )
+}
+
+export default function PaymentSuccess() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen flex items-center justify-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#00C6A2]"></div>
+            </div>
+        }>
+            <PaymentSuccessContent />
+        </Suspense>
     )
 }
 
