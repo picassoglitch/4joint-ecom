@@ -136,36 +136,37 @@ const OrderSummary = ({ totalPrice, items }) => {
                         } else {
                             const savedAddresses = await getUserAddresses(currentUser.id);
                             if (savedAddresses && savedAddresses.length > 0) {
-                            // Update Redux store with saved addresses
-                            savedAddresses.forEach(addr => {
-                                dispatch(addAddress({
-                                    id: addr.id,
-                                    name: addr.name,
-                                    email: addr.email,
-                                    street: addr.street,
-                                    city: addr.city,
-                                    state: addr.state,
-                                    zip: addr.zip,
-                                    country: addr.country,
-                                    phone: addr.phone,
-                                    address: addr.street,
-                                }));
-                            });
-                            // Set default address if available
-                            const defaultAddr = savedAddresses.find(a => a.is_default) || savedAddresses[0];
-                            if (defaultAddr) {
-                                setSelectedAddress({
-                                    id: defaultAddr.id,
-                                    name: defaultAddr.name,
-                                    email: defaultAddr.email,
-                                    street: defaultAddr.street,
-                                    city: defaultAddr.city,
-                                    state: defaultAddr.state,
-                                    zip: defaultAddr.zip,
-                                    country: defaultAddr.country,
-                                    phone: defaultAddr.phone,
-                                    address: defaultAddr.street,
+                                // Update Redux store with saved addresses
+                                savedAddresses.forEach(addr => {
+                                    dispatch(addAddress({
+                                        id: addr.id,
+                                        name: addr.name,
+                                        email: addr.email,
+                                        street: addr.street,
+                                        city: addr.city,
+                                        state: addr.state,
+                                        zip: addr.zip,
+                                        country: addr.country,
+                                        phone: addr.phone,
+                                        address: addr.street,
+                                    }));
                                 });
+                                // Set default address if available
+                                const defaultAddr = savedAddresses.find(a => a.is_default) || savedAddresses[0];
+                                if (defaultAddr) {
+                                    setSelectedAddress({
+                                        id: defaultAddr.id,
+                                        name: defaultAddr.name,
+                                        email: defaultAddr.email,
+                                        street: defaultAddr.street,
+                                        city: defaultAddr.city,
+                                        state: defaultAddr.state,
+                                        zip: defaultAddr.zip,
+                                        country: defaultAddr.country,
+                                        phone: defaultAddr.phone,
+                                        address: defaultAddr.street,
+                                    });
+                                }
                             }
                         }
                     } catch (error) {
