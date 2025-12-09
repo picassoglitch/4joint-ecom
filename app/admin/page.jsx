@@ -50,8 +50,8 @@ export default function AdminDashboard() {
             const [products, orders, vendors, pendingVendors] = await Promise.all([
                 getProducts(), // All products
                 getOrders(), // All orders
-                getVendors({ approved: true }), // Approved vendors
-                getVendors({ approved: false }), // Pending vendors
+                getVendors(true), // Approved vendors
+                getVendors(false), // Pending vendors
             ])
 
             // Calculate revenue from orders
