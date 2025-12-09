@@ -263,20 +263,60 @@ const OrderSummary = ({ totalPrice, items }) => {
                 toast.error('Por favor completa tu dirección de envío');
                 return;
             }
+            
+            // Auto-register the user before placing order
+            setIsPlacingOrder(true);
+            toast.loading('Creando tu cuenta...', { id: 'auto-register' });
+            
+            try {
+                const { data: signUpData, error: signUpError } = await autoRegisterUser(guestEmail, {
+                    full_name: guestName,
+                    phone: guestPhone,
+                });
+                
+                if (signUpError) {
+                    // If user already exists, show message but continue with order
+                    if (signUpError.message?.includes('ya está registrado')) {
+                        toast.error('Este email ya está registrado. Usa "Olvidé mi contraseña" para acceder. Continuando con tu pedido...', { id: 'auto-register' });
+                        // Continue with guest checkout
+                    } else {
+                        toast.error(signUpError.message || 'Error al crear la cuenta. Continuando como invitado...', { id: 'auto-register' });
+                        // Continue with guest checkout anyway
+                    }
+                } else {
+                    // Registration successful, try to sign in the user
+                    toast.success('Cuenta creada exitosamente. Te hemos enviado un email para establecer tu contraseña.', { id: 'auto-register' });
+                    
+                    // Refresh user session
+                    const { user: newUser } = await getCurrentUser();
+                    if (newUser) {
+                        setUser(newUser);
+                        // Update guest info with user data
+                        setGuestEmail(newUser.email || guestEmail);
+                        setGuestName(newUser.user_metadata?.full_name || guestName);
+                    }
+                }
+            } catch (error) {
+                console.error('Error in auto-registration:', error);
+                toast.error('Error al crear la cuenta. Continuando como invitado...', { id: 'auto-register' });
+                // Continue with guest checkout
+            }
+        } else {
+            setIsPlacingOrder(true);
         }
         
         // Validate address
         if (!user && (!guestAddress.street || !guestAddress.city || !guestAddress.state || !guestAddress.zip)) {
             toast.error('Por favor completa tu dirección de envío');
+            setIsPlacingOrder(false);
             return;
         }
         
         if (user && !selectedAddress && addressList.length === 0) {
             toast.error('Por favor agrega una dirección de envío');
+            setIsPlacingOrder(false);
             return;
         }
-
-        setIsPlacingOrder(true);
         
         try {
             // Get vendor_id from first item (assuming all items are from same vendor)
