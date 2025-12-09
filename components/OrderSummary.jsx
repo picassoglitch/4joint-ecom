@@ -93,6 +93,9 @@ const OrderSummary = ({ totalPrice, items }) => {
     // Check if user is eligible for free 1gr (first order)
     const [isEligibleForFreeGram, setIsEligibleForFreeGram] = useState(false);
     
+    // Track if user was auto-registered in this session (to skip address saving)
+    const [wasAutoRegistered, setWasAutoRegistered] = useState(false);
+    
     // Save guest address to sessionStorage whenever it changes (only for non-logged users)
     useEffect(() => {
         if (!user && typeof window !== 'undefined') {
@@ -284,8 +287,14 @@ const OrderSummary = ({ totalPrice, items }) => {
                         // Continue with guest checkout anyway
                     }
                 } else {
-                    // Registration successful, try to sign in the user
+                    // Registration successful
                     toast.success('Cuenta creada exitosamente. Te hemos enviado un email para establecer tu contraseña.', { id: 'auto-register' });
+                    
+                    // Mark that user was auto-registered (session may not be ready yet)
+                    setWasAutoRegistered(true);
+                    
+                    // Wait a moment for session to be established, then refresh user session
+                    await new Promise(resolve => setTimeout(resolve, 500));
                     
                     // Refresh user session
                     const { user: newUser } = await getCurrentUser();
@@ -294,6 +303,10 @@ const OrderSummary = ({ totalPrice, items }) => {
                         // Update guest info with user data
                         setGuestEmail(newUser.email || guestEmail);
                         setGuestName(newUser.user_metadata?.full_name || guestName);
+                    } else {
+                        // Session might not be ready yet, but continue with order
+                        // The address won't be saved, but the order will proceed
+                        console.warn('User session not ready yet after auto-registration. Order will continue as guest.');
                     }
                 }
             } catch (error) {
@@ -550,9 +563,9 @@ const OrderSummary = ({ totalPrice, items }) => {
             
             // Save address to user account if logged in and address was entered manually
             // Only try to save if user is logged in (not for guest checkout)
-            // IMPORTANT: This should NEVER run for guest users - only for logged-in users
+            // IMPORTANT: Skip if user was auto-registered in this session (session may not be ready)
             // Also verify that session is actually established before trying to save
-            if (user && !selectedAddress && guestAddress.street) {
+            if (user && !selectedAddress && guestAddress.street && !wasAutoRegistered) {
                 try {
                     // Double-check that user session is actually established
                     const { user: verifiedUser } = await getCurrentUser();
@@ -584,6 +597,8 @@ const OrderSummary = ({ totalPrice, items }) => {
                     }
                     // Don't fail the order if address save fails - this is a non-critical operation
                 }
+            } else if (wasAutoRegistered) {
+                console.log('User was auto-registered in this session. Address will not be saved (user can add it later after setting password).');
             }
             
             // Clear guest checkout data from sessionStorage after successful order
