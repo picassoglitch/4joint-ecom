@@ -41,26 +41,45 @@ CREATE INDEX IF NOT EXISTS idx_coupons_type ON coupons(type);
 -- Step 4: Enable Row Level Security
 ALTER TABLE coupons ENABLE ROW LEVEL SECURITY;
 
--- Step 5: Drop existing policies if they exist (to avoid errors on re-run)
+-- Step 5: Create or replace the is_admin function if it doesn't exist
+CREATE OR REPLACE FUNCTION is_admin()
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 
+    FROM auth.users 
+    WHERE auth.users.id = auth.uid()
+    AND (auth.users.raw_user_meta_data->>'role')::text = 'admin'
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Step 6: Drop existing policies if they exist (to avoid errors on re-run)
 DROP POLICY IF EXISTS "Public coupons are viewable by everyone" ON coupons;
 DROP POLICY IF EXISTS "Admins can manage coupons" ON coupons;
+DROP POLICY IF EXISTS "Admins can insert coupons" ON coupons;
+DROP POLICY IF EXISTS "Admins can update coupons" ON coupons;
+DROP POLICY IF EXISTS "Admins can delete coupons" ON coupons;
 
--- Step 6: Create RLS policies
+-- Step 7: Create RLS policies using the function
 CREATE POLICY "Public coupons are viewable by everyone"
   ON coupons FOR SELECT
   USING (is_public = true OR expires_at > NOW());
 
-CREATE POLICY "Admins can manage coupons"
-  ON coupons FOR ALL
-  USING (
-    EXISTS (
-      SELECT 1 FROM auth.users
-      WHERE auth.users.id = auth.uid()
-      AND auth.users.raw_user_meta_data->>'role' = 'admin'
-    )
-  );
+CREATE POLICY "Admins can insert coupons"
+  ON coupons FOR INSERT
+  WITH CHECK (is_admin());
 
--- Step 7: Create or replace the update_updated_at_column function if it doesn't exist
+CREATE POLICY "Admins can update coupons"
+  ON coupons FOR UPDATE
+  USING (is_admin())
+  WITH CHECK (is_admin());
+
+CREATE POLICY "Admins can delete coupons"
+  ON coupons FOR DELETE
+  USING (is_admin());
+
+-- Step 8: Create or replace the update_updated_at_column function if it doesn't exist
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -69,16 +88,16 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
--- Step 8: Drop existing trigger if it exists
+-- Step 9: Drop existing trigger if it exists
 DROP TRIGGER IF EXISTS update_coupons_updated_at ON coupons;
 
--- Step 9: Create trigger for updated_at
+-- Step 10: Create trigger for updated_at
 CREATE TRIGGER update_coupons_updated_at 
   BEFORE UPDATE ON coupons
   FOR EACH ROW 
   EXECUTE FUNCTION update_updated_at_column();
 
--- Step 10: Add comments
+-- Step 11: Add comments
 COMMENT ON TABLE coupons IS 'Advanced coupons system supporting multiple discount types: percentage, fixed_amount, free_shipping, free_product, gift';
 COMMENT ON COLUMN coupons.type IS 'Coupon type: percentage (discount %), fixed_amount (fixed $ off), free_shipping (remove shipping cost), free_product (specific product free), gift (gift item)';
 COMMENT ON COLUMN coupons.applicable_vendor_ids IS 'JSONB array of vendor UUIDs. NULL means applies to all stores. Example: ["uuid1", "uuid2"]';
