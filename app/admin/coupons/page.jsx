@@ -118,11 +118,18 @@ export default function AdminCoupons() {
             }
 
             // Prepare coupon data
+            // For free_shipping, discount_value should be 0
+            const discountValue = newCoupon.type === 'free_shipping' 
+                ? 0 
+                : (newCoupon.discount_value && newCoupon.discount_value !== '') 
+                    ? parseFloat(newCoupon.discount_value) 
+                    : 0
+
             const couponData = {
                 code: newCoupon.code,
                 description: newCoupon.description,
                 type: newCoupon.type,
-                discount_value: parseFloat(newCoupon.discount_value) || 0,
+                discount_value: discountValue,
                 min_purchase: newCoupon.min_purchase ? parseFloat(newCoupon.min_purchase) : 0,
                 max_discount: newCoupon.max_discount ? parseFloat(newCoupon.max_discount) : null,
                 free_product_id: newCoupon.type === 'free_product' && newCoupon.free_product_id ? newCoupon.free_product_id : null,
@@ -189,10 +196,21 @@ export default function AdminCoupons() {
 
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target
-        setNewCoupon(prev => ({
-            ...prev,
-            [name]: type === 'checkbox' ? checked : value
-        }))
+        setNewCoupon(prev => {
+            const updated = {
+                ...prev,
+                [name]: type === 'checkbox' ? checked : value
+            }
+            // Clear discount_value when switching to free_shipping
+            if (name === 'type' && value === 'free_shipping') {
+                updated.discount_value = ''
+            }
+            // Clear free_product_id when switching away from free_product
+            if (name === 'type' && value !== 'free_product') {
+                updated.free_product_id = ''
+            }
+            return updated
+        })
     }
 
     const handleVendorToggle = (vendorId) => {

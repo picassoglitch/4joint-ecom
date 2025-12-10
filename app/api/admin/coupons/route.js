@@ -69,9 +69,9 @@ export async function POST(request) {
     } = body
 
     // Validate required fields
-    if (!code || !description || !type || !discount_value || !expires_at) {
+    if (!code || !description || !type || !expires_at) {
       return NextResponse.json(
-        { error: 'Missing required fields: code, description, type, discount_value, expires_at' },
+        { error: 'Missing required fields: code, description, type, expires_at' },
         { status: 400 }
       )
     }
@@ -81,6 +81,14 @@ export async function POST(request) {
     if (!validTypes.includes(type)) {
       return NextResponse.json(
         { error: `Invalid coupon type. Must be one of: ${validTypes.join(', ')}` },
+        { status: 400 }
+      )
+    }
+
+    // Validate discount_value based on type
+    if (type !== 'free_shipping' && (discount_value === undefined || discount_value === null || discount_value === '')) {
+      return NextResponse.json(
+        { error: 'discount_value is required for this coupon type' },
         { status: 400 }
       )
     }
@@ -161,11 +169,18 @@ export async function POST(request) {
     }
 
     // Prepare coupon data
+    // For free_shipping, discount_value should be 0 or can be omitted
+    const finalDiscountValue = type === 'free_shipping' 
+      ? 0 
+      : (discount_value !== undefined && discount_value !== null && discount_value !== '') 
+        ? parseFloat(discount_value) 
+        : 0
+
     const couponData = {
       code: code.toUpperCase(),
       description,
       type,
-      discount_value: parseFloat(discount_value),
+      discount_value: finalDiscountValue,
       min_purchase: min_purchase ? parseFloat(min_purchase) : 0,
       max_discount: max_discount ? parseFloat(max_discount) : null,
       free_product_id: free_product_id || null,
