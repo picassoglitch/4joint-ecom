@@ -219,11 +219,41 @@ const OrderSummary = ({ totalPrice, items }) => {
         checkUser();
     }, []);
 
+    // Calculate coupon discount
+    const calculateCouponDiscount = (subtotal) => {
+        if (!coupon) return 0;
+        
+        switch (coupon.type) {
+            case 'percentage':
+                let discount = (subtotal * coupon.discount_value) / 100;
+                if (coupon.max_discount && discount > coupon.max_discount) {
+                    discount = coupon.max_discount;
+                }
+                return discount;
+            case 'fixed_amount':
+                return Math.min(coupon.discount_value, subtotal);
+            case 'free_shipping':
+                return 0; // Handled separately in delivery cost
+            case 'free_product':
+            case 'gift':
+                return 0; // Handled separately
+            default:
+                return 0;
+        }
+    };
+
     const calculateTip = () => {
-        const subtotal = coupon ? (totalPrice - (coupon.discount / 100 * totalPrice)) : totalPrice;
-        const isFreeShipping = subtotal >= 800;
+        const subtotal = totalPrice;
+        const couponDiscount = calculateCouponDiscount(subtotal);
+        const subtotalAfterCoupon = subtotal - couponDiscount;
+        
+        // Check if free shipping applies (either from coupon or subtotal >= 800)
+        const isFreeShippingFromCoupon = coupon?.type === 'free_shipping';
+        const isFreeShippingFromAmount = subtotalAfterCoupon >= 800;
+        const isFreeShipping = isFreeShippingFromCoupon || isFreeShippingFromAmount;
+        
         const deliveryCost = (deliveryOption && !isFreeShipping) ? deliveryOption.price : 0;
-        const orderSubtotal = subtotal + deliveryCost;
+        const orderSubtotal = subtotalAfterCoupon + deliveryCost;
         
         if (tipType === 'percentage') {
             return (orderSubtotal * tipPercentage) / 100;
@@ -233,17 +263,30 @@ const OrderSummary = ({ totalPrice, items }) => {
     };
 
     const calculateTotal = () => {
-        const subtotal = coupon ? (totalPrice - (coupon.discount / 100 * totalPrice)) : totalPrice;
-        // Envío gratis para pedidos mayores a $800 MXN
-        const isFreeShipping = subtotal >= 800;
+        const subtotal = totalPrice;
+        const couponDiscount = calculateCouponDiscount(subtotal);
+        const subtotalAfterCoupon = subtotal - couponDiscount;
+        
+        // Check if free shipping applies
+        const isFreeShippingFromCoupon = coupon?.type === 'free_shipping';
+        const isFreeShippingFromAmount = subtotalAfterCoupon >= 800;
+        const isFreeShipping = isFreeShippingFromCoupon || isFreeShippingFromAmount;
+        
         const deliveryCost = (deliveryOption && !isFreeShipping) ? deliveryOption.price : 0;
         const tip = calculateTip();
-        return subtotal + deliveryCost + tip;
+        return subtotalAfterCoupon + deliveryCost + tip;
     };
     
     const getDeliveryCost = () => {
-        const subtotal = coupon ? (totalPrice - (coupon.discount / 100 * totalPrice)) : totalPrice;
-        const isFreeShipping = subtotal >= 800;
+        const subtotal = totalPrice;
+        const couponDiscount = calculateCouponDiscount(subtotal);
+        const subtotalAfterCoupon = subtotal - couponDiscount;
+        
+        // Check if free shipping applies
+        const isFreeShippingFromCoupon = coupon?.type === 'free_shipping';
+        const isFreeShippingFromAmount = subtotalAfterCoupon >= 800;
+        const isFreeShipping = isFreeShippingFromCoupon || isFreeShippingFromAmount;
+        
         if (isFreeShipping) return 0;
         return deliveryOption ? deliveryOption.price : 0;
     };
@@ -251,6 +294,66 @@ const OrderSummary = ({ totalPrice, items }) => {
     const handleCouponCode = async (event) => {
         event.preventDefault();
         
+        if (!couponCodeInput.trim()) {
+            toast.error('Por favor ingresa un código de cupón');
+            return;
+        }
+
+        try {
+            // Get vendor_id from first item
+            const vendorId = items[0]?.vendor_id || items[0]?.storeId;
+            if (!vendorId) {
+                toast.error('No se pudo determinar la tienda');
+                return;
+            }
+
+            // Calculate current subtotal
+            const currentSubtotal = totalPrice;
+
+            // Get user ID if logged in
+            const userId = user?.id || null;
+
+            // Validate coupon
+            const response = await fetch('/api/coupons/validate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    code: couponCodeInput.trim(),
+                    user_id: userId,
+                    vendor_id: vendorId,
+                    subtotal: currentSubtotal,
+                }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Error al validar el cupón');
+            }
+
+            const { coupon: validatedCoupon } = await response.json();
+            
+            // Set coupon with all necessary data
+            setCoupon({
+                code: validatedCoupon.code,
+                description: validatedCoupon.description,
+                type: validatedCoupon.type,
+                discount_value: validatedCoupon.discount_value,
+                discount_amount: validatedCoupon.discount_amount,
+                discount_description: validatedCoupon.discount_description,
+                free_product_id: validatedCoupon.free_product_id,
+                min_purchase: validatedCoupon.min_purchase,
+                max_discount: validatedCoupon.max_discount,
+            });
+
+            toast.success('Cupón aplicado exitosamente');
+            setCouponCodeInput('');
+        } catch (error) {
+            console.error('Error validating coupon:', error);
+            toast.error(error.message || 'Error al validar el cupón');
+            throw error;
+        }
     }
 
     const handlePlaceOrder = async (e) => {
@@ -352,7 +455,8 @@ const OrderSummary = ({ totalPrice, items }) => {
 
             console.log('Creating order with vendor_id:', vendorId);
 
-            const subtotal = coupon ? (totalPrice - (coupon.discount / 100 * totalPrice)) : totalPrice;
+            const couponDiscount = calculateCouponDiscount(totalPrice);
+            const subtotal = totalPrice - couponDiscount;
             const isFreeShipping = subtotal >= 800;
             const deliveryCost = (deliveryOption && !isFreeShipping) ? deliveryOption.price : 0;
             const tip = calculateTip();
@@ -551,7 +655,9 @@ const OrderSummary = ({ totalPrice, items }) => {
                     const { init_point, sandbox_init_point } = await response.json();
                     
                     // Redirect to Mercado Pago checkout
-                    window.location.href = sandbox_init_point || init_point;
+                    // Use init_point for production, sandbox_init_point only for testing
+                    // When using production credentials, init_point is the production URL
+                    window.location.href = init_point || sandbox_init_point;
                 } catch (error) {
                     console.error('Error creating Mercado Pago preference:', error);
                     toast.error('Error al procesar el pago. Intenta de nuevo.');
@@ -685,8 +791,11 @@ const OrderSummary = ({ totalPrice, items }) => {
         );
     }
 
-    const subtotal = coupon ? (totalPrice - (coupon.discount / 100 * totalPrice)) : totalPrice;
-    const isFreeShipping = subtotal >= 800;
+    const couponDiscount = calculateCouponDiscount(totalPrice);
+    const subtotal = totalPrice - couponDiscount;
+    const isFreeShippingFromCoupon = coupon?.type === 'free_shipping';
+    const isFreeShippingFromAmount = subtotal >= 800;
+    const isFreeShipping = isFreeShippingFromCoupon || isFreeShippingFromAmount;
     const deliveryCost = getDeliveryCost();
     const tip = calculateTip();
     const finalTotal = calculateTotal();
@@ -939,11 +1048,18 @@ const OrderSummary = ({ totalPrice, items }) => {
                         <p>{currency}{subtotal.toLocaleString()}</p>
                         {(deliveryOption || isFreeShipping) && (
                             <p className={isFreeShipping ? 'text-[#00C6A2]' : ''}>
-                                {isFreeShipping ? 'Gratis' : `${currency}${deliveryCost}`}
+                                {isFreeShipping ? 'Gratis' : `${currency}${getDeliveryCost()}`}
                             </p>
                         )}
                         {tip > 0 && <p>{currency}{tip.toFixed(2)}</p>}
-                        {coupon && <p>{`-${currency}${(coupon.discount / 100 * totalPrice).toFixed(2)}`}</p>}
+                        {coupon && (
+                            <p className="text-[#00C6A2]">
+                                -{currency}{calculateCouponDiscount(totalPrice).toFixed(2)}
+                                {coupon.type === 'free_shipping' && getDeliveryCost() > 0 && (
+                                    <span className="text-xs block">+ Envío gratis</span>
+                                )}
+                            </p>
+                        )}
                     </div>
                 </div>
                 {
@@ -954,8 +1070,8 @@ const OrderSummary = ({ totalPrice, items }) => {
                         </form>
                     ) : (
                         <div className='w-full flex items-center justify-center gap-2 text-xs mt-2'>
-                            <p>Código: <span className='font-semibold ml-1'>{coupon.code.toUpperCase()}</span></p>
-                            <p>{coupon.description}</p>
+                            <p>Código: <span className='font-semibold ml-1'>{coupon.code?.toUpperCase() || 'N/A'}</span></p>
+                            <p>{coupon.discount_description || coupon.description}</p>
                             <XIcon size={18} onClick={() => setCoupon('')} className='hover:text-red-700 transition cursor-pointer' />
                         </div>
                     )

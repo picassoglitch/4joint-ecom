@@ -36,7 +36,8 @@ NEXT_PUBLIC_SITE_URL=https://4joint.net
 
 ## Notas
 
-- En modo sandbox, usa `sandbox_init_point` en lugar de `init_point`
+- **Producción**: Con credenciales de producción, el código usa automáticamente `init_point` (URL de producción)
+- **Sandbox**: Si necesitas probar con sandbox, usa credenciales de sandbox y el código usará `init_point` que apuntará a sandbox
 - El webhook debe ser configurado en el panel de Mercado Pago
 - Asegúrate de que `NEXT_PUBLIC_SITE_URL` esté configurado correctamente para producción
 

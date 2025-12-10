@@ -23,6 +23,8 @@ export default function AdminStores() {
                 address: vendor.address || null,
                 contact: vendor.contact || null,
                 isActive: vendor.approved,
+                approved: vendor.approved,
+                status: vendor.approved ? 'approved' : 'pending',
                 createdAt: vendor.created_at,
             })))
         } catch (error) {

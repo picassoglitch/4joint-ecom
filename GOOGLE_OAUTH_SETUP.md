@@ -115,3 +115,4 @@ Después de configurar todo, verifica:
 - [ ] El botón "Continuar con Google" redirige a Google
 - [ ] Después de autenticarte, regresas a la aplicación y estás autenticado
 
+
