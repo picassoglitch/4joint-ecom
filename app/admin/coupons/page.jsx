@@ -145,7 +145,16 @@ export default function AdminCoupons() {
 
             if (!response.ok) {
                 const errorData = await response.json()
-                throw new Error(errorData.error || 'Error al crear el cupón')
+                const errorMessage = errorData.error || 'Error al crear el cupón'
+                
+                // Show specific error message
+                if (errorMessage.includes('already exists') || errorMessage.includes('ya existe')) {
+                    toast.error('Este código de cupón ya existe. Por favor usa otro código.', { duration: 4000 })
+                } else {
+                    toast.error(errorMessage)
+                }
+                
+                throw new Error(errorMessage)
             }
 
             toast.success('Cupón creado exitosamente')
