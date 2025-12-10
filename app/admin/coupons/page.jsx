@@ -56,14 +56,25 @@ export default function AdminCoupons() {
             })
 
             if (!response.ok) {
-                throw new Error('Error al cargar cupones')
+                const errorData = await response.json()
+                const errorMessage = errorData.error || 'Error al cargar cupones'
+                const hint = errorData.hint || ''
+                
+                // Show specific error message
+                if (errorMessage.includes('no existe') || errorMessage.includes('does not exist')) {
+                    toast.error(errorMessage + (hint ? `\n${hint}` : ''), { duration: 6000 })
+                } else {
+                    toast.error(errorMessage)
+                }
+                
+                throw new Error(errorMessage)
             }
 
             const { data } = await response.json()
             setCoupons(data || [])
         } catch (error) {
             console.error('Error fetching coupons:', error)
-            toast.error('Error al cargar los cupones')
+            // Error toast already shown above
         } finally {
             setLoading(false)
         }

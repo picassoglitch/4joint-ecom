@@ -23,7 +23,19 @@ export async function GET(request) {
       .order('created_at', { ascending: false })
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      // Check if table doesn't exist
+      if (error.code === '42P01' || error.message?.includes('does not exist') || error.message?.includes('relation "coupons"')) {
+        console.error('Coupons table does not exist. Please run the migration: supabase/migration_advanced_coupons.sql')
+        return NextResponse.json({ 
+          error: 'La tabla de cupones no existe. Por favor ejecuta la migración SQL en Supabase.',
+          hint: 'Ejecuta el archivo: supabase/migration_advanced_coupons.sql en el SQL Editor de Supabase'
+        }, { status: 500 })
+      }
+      console.error('Error fetching coupons:', error)
+      return NextResponse.json({ 
+        error: error.message || 'Error al cargar cupones',
+        details: error.code
+      }, { status: 500 })
     }
 
     return NextResponse.json({ data: data || [] })
