@@ -39,12 +39,18 @@ export async function POST(request) {
     }
 
     // Create preference items
+    // Ensure prices are positive and properly formatted
     const preferenceItems = items.map(item => ({
       title: item.name,
-      quantity: item.quantity,
-      unit_price: parseFloat(item.price),
+      quantity: item.quantity || 1,
+      unit_price: Math.max(0, parseFloat(item.price) || 0), // Ensure price is positive
       currency_id: 'MXN',
     }));
+    
+    // Log for debugging
+    console.log('MercadoPago preference items:', preferenceItems);
+    const totalFromItems = preferenceItems.reduce((sum, item) => sum + (item.unit_price * item.quantity), 0);
+    console.log('Total from items:', totalFromItems);
 
     // Create preference
     const preference = new Preference(client);

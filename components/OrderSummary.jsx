@@ -614,10 +614,11 @@ const OrderSummary = ({ totalPrice, items }) => {
                         } : null),
                     };
 
-                    // Calculate subtotal and coupon discount
+                    // Calculate final total with all discounts and fees
                     const subtotal = totalPrice;
                     const couponDiscount = calculateCouponDiscount(subtotal);
                     const subtotalAfterCoupon = subtotal - couponDiscount;
+                    const finalTotal = calculateTotal(); // This includes delivery and tip
                     
                     // Calculate the discount ratio to apply proportionally to items
                     const discountRatio = couponDiscount > 0 && subtotal > 0 ? couponDiscount / subtotal : 0;
@@ -631,34 +632,42 @@ const OrderSummary = ({ totalPrice, items }) => {
                         return {
                             name: item.name,
                             quantity: item.quantity || 1,
-                            price: Math.max(0, itemPriceAfterDiscount), // Ensure price is not negative
+                            price: Math.max(0, parseFloat(itemPriceAfterDiscount.toFixed(2))), // Ensure price is not negative and has 2 decimals
                         };
                     });
 
-                    // Add coupon discount as a negative item if applicable
-                    if (couponDiscount > 0) {
-                        preferenceItems.push({
-                            name: `Descuento: ${coupon.code || 'Cupón'}`,
-                            quantity: 1,
-                            price: -couponDiscount, // Negative price for discount
-                        });
-                    }
-
+                    // Calculate sum of product items to verify total
+                    const productsTotal = preferenceItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+                    
                     // Add delivery and tip as items if applicable
                     if (deliveryCost > 0) {
                         preferenceItems.push({
                             name: 'Envío',
                             quantity: 1,
-                            price: deliveryCost,
+                            price: parseFloat(deliveryCost.toFixed(2)),
                         });
                     }
                     if (tip > 0) {
                         preferenceItems.push({
                             name: 'Propina',
                             quantity: 1,
-                            price: tip,
+                            price: parseFloat(tip.toFixed(2)),
                         });
                     }
+                    
+                    // Calculate total from all items
+                    const itemsTotal = preferenceItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+                    
+                    // If there's a rounding difference, adjust the last item to match final total
+                    const difference = finalTotal - itemsTotal;
+                    if (Math.abs(difference) > 0.01 && preferenceItems.length > 0) {
+                        const lastItem = preferenceItems[preferenceItems.length - 1];
+                        lastItem.price = Math.max(0, parseFloat((lastItem.price + difference).toFixed(2)));
+                    }
+                    
+                    console.log('MercadoPago items:', preferenceItems);
+                    console.log('Final total calculated:', finalTotal);
+                    console.log('Items total:', preferenceItems.reduce((sum, item) => sum + (item.price * item.quantity), 0));
 
                     const response = await fetch('/api/mercadopago/create-preference', {
                         method: 'POST',
