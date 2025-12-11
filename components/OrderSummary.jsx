@@ -455,12 +455,31 @@ const OrderSummary = ({ totalPrice, items }) => {
 
             console.log('Creating order with vendor_id:', vendorId);
 
-            const couponDiscount = calculateCouponDiscount(totalPrice);
-            const subtotal = totalPrice - couponDiscount;
-            const isFreeShipping = subtotal >= 800;
+            // Use the same calculation logic as calculateTotal() to ensure consistency
+            const subtotal = totalPrice;
+            const couponDiscount = calculateCouponDiscount(subtotal);
+            const subtotalAfterCoupon = subtotal - couponDiscount;
+            
+            // Check if free shipping applies (either from coupon or subtotal >= 800)
+            const isFreeShippingFromCoupon = coupon?.type === 'free_shipping';
+            const isFreeShippingFromAmount = subtotalAfterCoupon >= 800;
+            const isFreeShipping = isFreeShippingFromCoupon || isFreeShippingFromAmount;
+            
             const deliveryCost = (deliveryOption && !isFreeShipping) ? deliveryOption.price : 0;
             const tip = calculateTip();
-            const finalTotal = subtotal + deliveryCost + tip;
+            const finalTotal = subtotalAfterCoupon + deliveryCost + tip;
+            
+            console.log('Order calculation:', {
+                subtotal,
+                couponDiscount,
+                subtotalAfterCoupon,
+                isFreeShippingFromCoupon,
+                isFreeShippingFromAmount,
+                isFreeShipping,
+                deliveryCost,
+                tip,
+                finalTotal
+            });
 
             // Validate address_id - must be a valid UUID or null
             let validAddressId = null;
