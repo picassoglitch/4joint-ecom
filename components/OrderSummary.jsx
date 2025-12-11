@@ -614,11 +614,35 @@ const OrderSummary = ({ totalPrice, items }) => {
                         } : null),
                     };
 
-                    const preferenceItems = items.map(item => ({
-                        name: item.name,
-                        quantity: item.quantity || 1,
-                        price: item.price || item.discountedPrice || 0,
-                    }));
+                    // Calculate subtotal and coupon discount
+                    const subtotal = totalPrice;
+                    const couponDiscount = calculateCouponDiscount(subtotal);
+                    const subtotalAfterCoupon = subtotal - couponDiscount;
+                    
+                    // Calculate the discount ratio to apply proportionally to items
+                    const discountRatio = couponDiscount > 0 && subtotal > 0 ? couponDiscount / subtotal : 0;
+                    
+                    // Create preference items with coupon discount applied proportionally
+                    const preferenceItems = items.map(item => {
+                        const itemSubtotal = (item.price || item.discountedPrice || 0) * (item.quantity || 1);
+                        const itemDiscount = itemSubtotal * discountRatio;
+                        const itemPriceAfterDiscount = (itemSubtotal - itemDiscount) / (item.quantity || 1);
+                        
+                        return {
+                            name: item.name,
+                            quantity: item.quantity || 1,
+                            price: Math.max(0, itemPriceAfterDiscount), // Ensure price is not negative
+                        };
+                    });
+
+                    // Add coupon discount as a negative item if applicable
+                    if (couponDiscount > 0) {
+                        preferenceItems.push({
+                            name: `Descuento: ${coupon.code || 'Cupón'}`,
+                            quantity: 1,
+                            price: -couponDiscount, // Negative price for discount
+                        });
+                    }
 
                     // Add delivery and tip as items if applicable
                     if (deliveryCost > 0) {
