@@ -38,6 +38,8 @@ export default function StoreEditProduct() {
         price: 0,
         category: "",
         customCategory: "",
+        quantity: "",
+        unit: "",
     })
     const [variants, setVariants] = useState([])
     const [useVariants, setUseVariants] = useState(false)
@@ -79,6 +81,8 @@ export default function StoreEditProduct() {
                     price: product.price || 0,
                     category: product.category || "",
                     customCategory: product.category && !categories.includes(product.category) ? product.category : "",
+                    quantity: product.quantity ? String(product.quantity) : "",
+                    unit: product.unit || "",
                 })
 
                 // Set images
@@ -153,7 +157,7 @@ export default function StoreEditProduct() {
     }
 
     const addVariant = () => {
-        setVariants([...variants, { name: '', price: 0, mrp: 0 }])
+        setVariants([...variants, { name: '', price: 0, mrp: 0, quantity: '', unit: '' }])
     }
 
     const removeVariant = (index) => {
@@ -205,6 +209,8 @@ export default function StoreEditProduct() {
                 category: finalCategory,
                 images: images,
                 in_stock: true,
+                quantity: productInfo.quantity ? parseFloat(productInfo.quantity) : null,
+                unit: productInfo.unit || null,
             }
 
             // Handle variants
@@ -221,6 +227,8 @@ export default function StoreEditProduct() {
                     name: v.name.trim(),
                     price: parseFloat(v.price),
                     mrp: parseFloat(v.mrp) || parseFloat(v.price),
+                    quantity: v.quantity ? parseFloat(v.quantity) : null,
+                    unit: v.unit || null,
                 }))
 
                 // Set price to minimum variant price
@@ -245,7 +253,23 @@ export default function StoreEditProduct() {
             router.push('/store/manage-product')
         } catch (error) {
             console.error('Error updating product:', error)
-            toast.error(error.message || 'Error al actualizar el producto')
+            
+            // Better error handling
+            let errorMessage = 'Error al actualizar el producto'
+            
+            if (error?.message) {
+                errorMessage = error.message
+            } else if (typeof error === 'string') {
+                errorMessage = error
+            } else if (error?.error_description) {
+                errorMessage = error.error_description
+            } else if (error?.details) {
+                errorMessage = error.details
+            } else if (error?.code) {
+                errorMessage = `Error ${error.code}: ${error.message || 'Error desconocido'}`
+            }
+            
+            toast.error(errorMessage)
         } finally {
             setSaving(false)
         }
@@ -367,6 +391,34 @@ export default function StoreEditProduct() {
                             className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#00C6A2] focus:border-transparent"
                         />
                     </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">Cantidad <span className="text-slate-400 text-xs">(Opcional)</span></label>
+                        <input
+                            type="number"
+                            name="quantity"
+                            value={productInfo.quantity}
+                            onChange={(e) => setProductInfo({ ...productInfo, [e.target.name]: e.target.value })}
+                            placeholder="Ej: 1, 3.5, 10"
+                            step="0.1"
+                            min="0"
+                            className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#00C6A2] focus:border-transparent"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">Unidad <span className="text-slate-400 text-xs">(Opcional)</span></label>
+                        <select
+                            name="unit"
+                            value={productInfo.unit}
+                            onChange={(e) => setProductInfo({ ...productInfo, [e.target.name]: e.target.value })}
+                            className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#00C6A2] focus:border-transparent"
+                        >
+                            <option value="">Selecciona unidad</option>
+                            <option value="g">Gramos (g)</option>
+                            <option value="ml">Mililitros (ml)</option>
+                        </select>
+                    </div>
                 </div>
 
                 {/* Variants */}
@@ -384,33 +436,57 @@ export default function StoreEditProduct() {
                     {useVariants ? (
                         <div className="space-y-3 mt-3">
                             {variants.map((variant, index) => (
-                                <div key={index} className="flex gap-2 items-end">
-                                    <div className="flex-1">
+                                <div key={index} className="flex gap-2 items-end flex-wrap">
+                                    <div className="flex-1 min-w-[150px]">
                                         <label className="block text-xs text-slate-600 mb-1">Nombre (ej: 1g, Media oz)</label>
                                         <input
                                             type="text"
-                                            value={variant.name}
+                                            value={variant.name || ''}
                                             onChange={(e) => updateVariant(index, 'name', e.target.value)}
                                             placeholder="Ej: 1g"
                                             className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
                                         />
                                     </div>
-                                    <div className="flex-1">
+                                    <div className="w-24">
+                                        <label className="block text-xs text-slate-600 mb-1">Cantidad</label>
+                                        <input
+                                            type="number"
+                                            step="0.1"
+                                            min="0"
+                                            value={variant.quantity || ''}
+                                            onChange={(e) => updateVariant(index, 'quantity', e.target.value)}
+                                            placeholder="Ej: 1"
+                                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                                        />
+                                    </div>
+                                    <div className="w-20">
+                                        <label className="block text-xs text-slate-600 mb-1">Unidad</label>
+                                        <select
+                                            value={variant.unit || ''}
+                                            onChange={(e) => updateVariant(index, 'unit', e.target.value)}
+                                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                                        >
+                                            <option value="">-</option>
+                                            <option value="g">g</option>
+                                            <option value="ml">ml</option>
+                                        </select>
+                                    </div>
+                                    <div className="flex-1 min-w-[120px]">
                                         <label className="block text-xs text-slate-600 mb-1">Precio (MXN)</label>
                                         <input
                                             type="number"
-                                            value={variant.price}
+                                            value={variant.price || 0}
                                             onChange={(e) => updateVariant(index, 'price', e.target.value)}
                                             min="0"
                                             step="0.01"
                                             className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
                                         />
                                     </div>
-                                    <div className="flex-1">
+                                    <div className="flex-1 min-w-[120px]">
                                         <label className="block text-xs text-slate-600 mb-1">Precio Original (MXN)</label>
                                         <input
                                             type="number"
-                                            value={variant.mrp}
+                                            value={variant.mrp || 0}
                                             onChange={(e) => updateVariant(index, 'mrp', e.target.value)}
                                             min="0"
                                             step="0.01"

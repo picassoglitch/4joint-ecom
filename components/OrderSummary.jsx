@@ -66,21 +66,9 @@ const OrderSummary = ({ totalPrice, items }) => {
     });
     
     // Delivery options
-    const [deliveryOption, setDeliveryOption] = useState(null);
-    const deliveryOptions = [
-        {
-            id: 'same_day',
-            name: 'Entrega Mismo Día',
-            price: 80,
-            description: 'Lun-Vie antes de 8pm, Sáb antes de 6pm'
-        },
-        {
-            id: 'on_demand',
-            name: 'On Demand',
-            price: 150,
-            description: 'Entrega inmediata en 80 min. Lun-Vie antes de 8pm. Solo CDMX'
-        }
-    ];
+    const [fulfillmentType, setFulfillmentType] = useState(null); // 'pickup', 'delivery', 'meetupPoint'
+    const [selectedMeetupPoint, setSelectedMeetupPoint] = useState(null);
+    const [storeInfo, setStoreInfo] = useState(null);
     
     // Tip options
     const [tipType, setTipType] = useState('percentage'); // 'percentage' or 'custom'
@@ -115,6 +103,28 @@ const OrderSummary = ({ totalPrice, items }) => {
             sessionStorage.setItem('guest_checkout_info', JSON.stringify(guestInfo));
         }
     }, [guestName, guestEmail, guestPhone, user]);
+
+    // Fetch store info to check fulfillment modes
+    useEffect(() => {
+        const fetchStoreInfo = async () => {
+            try {
+                const vendorId = items[0]?.vendor_id || items[0]?.storeId;
+                if (!vendorId) return;
+
+                const response = await fetch(`/api/stores/info?vendorId=${vendorId}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    setStoreInfo(data);
+                }
+            } catch (error) {
+                console.error('Error fetching store info:', error);
+            }
+        };
+
+        if (items.length > 0) {
+            fetchStoreInfo();
+        }
+    }, [items]);
 
     // Check if user is logged in and load saved addresses
     useEffect(() => {
@@ -252,7 +262,8 @@ const OrderSummary = ({ totalPrice, items }) => {
         const isFreeShippingFromAmount = subtotalAfterCoupon >= 800;
         const isFreeShipping = isFreeShippingFromCoupon || isFreeShippingFromAmount;
         
-        const deliveryCost = (deliveryOption && !isFreeShipping) ? deliveryOption.price : 0;
+        // Fixed delivery cost of 180 MXN for delivery type
+        const deliveryCost = (fulfillmentType === 'delivery' && !isFreeShipping) ? 180 : 0;
         const orderSubtotal = subtotalAfterCoupon + deliveryCost;
         
         if (tipType === 'percentage') {
@@ -272,7 +283,8 @@ const OrderSummary = ({ totalPrice, items }) => {
         const isFreeShippingFromAmount = subtotalAfterCoupon >= 800;
         const isFreeShipping = isFreeShippingFromCoupon || isFreeShippingFromAmount;
         
-        const deliveryCost = (deliveryOption && !isFreeShipping) ? deliveryOption.price : 0;
+        // Fixed delivery cost of 180 MXN for delivery type
+        const deliveryCost = (fulfillmentType === 'delivery' && !isFreeShipping) ? 180 : 0;
         const tip = calculateTip();
         return subtotalAfterCoupon + deliveryCost + tip;
     };
@@ -288,7 +300,8 @@ const OrderSummary = ({ totalPrice, items }) => {
         const isFreeShipping = isFreeShippingFromCoupon || isFreeShippingFromAmount;
         
         if (isFreeShipping) return 0;
-        return deliveryOption ? deliveryOption.price : 0;
+        // Fixed delivery cost of 180 MXN for delivery type
+        return fulfillmentType === 'delivery' ? 180 : 0;
     };
 
     const handleCouponCode = async (event) => {
@@ -465,7 +478,8 @@ const OrderSummary = ({ totalPrice, items }) => {
             const isFreeShippingFromAmount = subtotalAfterCoupon >= 800;
             const isFreeShipping = isFreeShippingFromCoupon || isFreeShippingFromAmount;
             
-            const deliveryCost = (deliveryOption && !isFreeShipping) ? deliveryOption.price : 0;
+            // Fixed delivery cost of 180 MXN for delivery type
+            const deliveryCost = (fulfillmentType === 'delivery' && !isFreeShipping) ? 180 : 0;
             const tip = calculateTip();
             const finalTotal = subtotalAfterCoupon + deliveryCost + tip;
             
@@ -521,9 +535,14 @@ const OrderSummary = ({ totalPrice, items }) => {
                     address: selectedAddress.address || selectedAddress.street || '',
                 } : null),
                 // Delivery and tip info
-                delivery_option: deliveryOption ? deliveryOption.id : null,
+                delivery_option: null, // No longer using delivery options
                 delivery_cost: deliveryCost,
                 tip_amount: tip,
+                // Fulfillment fields
+                fulfillment_type: fulfillmentType,
+                meetup_point_id: selectedMeetupPoint?.id || null,
+                courier_cost: 0, // No longer used, kept for backward compatibility
+                dispatch_status: null, // No automatic dispatch
             };
 
             console.log('Order data:', orderData);
@@ -960,41 +979,144 @@ const OrderSummary = ({ totalPrice, items }) => {
                 )}
             </div>
 
-            {/* Delivery Options */}
-            <div className='my-4 py-4 border-y border-slate-200 text-slate-400'>
-                <p className='text-slate-600 font-medium mb-3'>Opción de Envío</p>
-                {isFreeShipping ? (
-                    <div className='bg-[#00C6A2]/10 border border-[#00C6A2]/30 rounded-lg p-3 mb-2'>
-                        <p className='text-[#00C6A2] font-semibold text-sm'>🎉 ¡Envío Gratis!</p>
-                        <p className='text-xs text-slate-600 mt-1'>Tu pedido califica para envío gratis (pedidos mayores a $800 MXN)</p>
-                    </div>
-                ) : (
-                    <>
-                        {deliveryOptions.map((option) => (
-                            <div key={option.id} className='flex items-start gap-2 mb-2'>
+            {/* Fulfillment Type Selection */}
+            {storeInfo && (
+                <div className='my-4 py-4 border-y border-slate-200 text-slate-400'>
+                    <p className='text-slate-600 font-medium mb-3'>Tipo de Entrega</p>
+                    <div className='space-y-2'>
+                        {storeInfo.fulfillment_modes?.pickup && (
+                            <label className='flex items-start gap-2 cursor-pointer'>
                                 <input 
                                     type="radio" 
-                                    id={option.id}
-                                    name="delivery"
-                                    checked={deliveryOption?.id === option.id}
-                                    onChange={() => setDeliveryOption(option)}
+                                    name="fulfillment"
+                                    checked={fulfillmentType === 'pickup'}
+                                    onChange={() => {
+                                        setFulfillmentType('pickup');
+                                        setSelectedMeetupPoint(null);
+                                    }}
                                     className='accent-gray-500 mt-1'
                                 />
-                                <label htmlFor={option.id} className='cursor-pointer flex-1'>
-                                    <div className='flex justify-between items-start'>
-                                        <div>
-                                            <p className='text-slate-700 font-medium'>{option.name}</p>
-                                            <p className='text-xs text-slate-500'>{option.description}</p>
-                                        </div>
-                                        <p className='text-slate-700 font-medium'>{currency}{option.price}</p>
+                                <div className='flex-1'>
+                                    <p className='text-slate-700 font-medium'>Pickup (Recoger en tienda)</p>
+                                    <p className='text-xs text-slate-500'>Recoge tu pedido directamente en la tienda</p>
+                                </div>
+                            </label>
+                        )}
+                        
+                        {storeInfo.fulfillment_modes?.delivery && (
+                            <>
+                                <label className='flex items-start gap-2 cursor-pointer'>
+                                    <input 
+                                        type="radio" 
+                                        name="fulfillment"
+                                        checked={fulfillmentType === 'delivery'}
+                                        onChange={() => {
+                                            setFulfillmentType('delivery');
+                                            setSelectedMeetupPoint(null);
+                                        }}
+                                        className='accent-gray-500 mt-1'
+                                    />
+                                    <div className='flex-1'>
+                                        <p className='text-slate-700 font-medium'>Envío a domicilio</p>
+                                        <p className='text-xs text-slate-500'>Entrega directa a tu dirección</p>
                                     </div>
                                 </label>
-                            </div>
-                        ))}
-                        <p className='text-xs text-slate-500 mt-2'>💡 Envío gratis en pedidos mayores a $800 MXN</p>
-                    </>
-                )}
-            </div>
+                                
+                                {fulfillmentType === 'delivery' && (
+                                    <div className='ml-6 mt-3 p-4 bg-gradient-to-br from-green-50 to-blue-50 border-2 border-green-200 rounded-xl'>
+                                        <div className='flex items-start gap-3'>
+                                            <div className='flex-1'>
+                                                <p className='text-green-900 font-bold text-lg mb-1'>
+                                                    Costo de envío: {currency}180
+                                                </p>
+                                                <p className='text-sm text-green-700 mb-3'>
+                                                    El vendedor coordinará el envío con Didi/Uber. Contacta directamente para coordinar la entrega.
+                                                </p>
+                                                {storeInfo?.show_whatsapp_contact && storeInfo?.whatsapp_number && (
+                                                    <div className='mt-3 p-4 bg-white rounded-lg border-2 border-green-300 shadow-sm'>
+                                                        <p className='text-xs text-green-600 font-semibold mb-2'>💬 Contacta al vendedor por WhatsApp:</p>
+                                                        <a 
+                                                            href={`https://wa.me/${storeInfo.whatsapp_number.replace(/[^0-9]/g, '')}`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className='inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold rounded-full transition-all shadow-lg hover:shadow-xl hover:scale-105 active:scale-95'
+                                                        >
+                                                            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                                                                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+                                                            </svg>
+                                                            Abrir WhatsApp
+                                                        </a>
+                                                        <p className='text-xs text-green-600 mt-2'>
+                                                            El vendedor te ayudará a coordinar el envío con Didi/Uber
+                                                        </p>
+                                                    </div>
+                                                )}
+                                                {(!storeInfo?.show_whatsapp_contact || !storeInfo?.whatsapp_number) && (
+                                                    <p className='text-xs text-green-600 italic'>
+                                                        El vendedor te contactará después de realizar el pedido
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </>
+                        )}
+                        
+                        {storeInfo.fulfillment_modes?.meetupPoint && storeInfo.meetup_points?.length > 0 && (
+                            <label className='flex items-start gap-2 cursor-pointer'>
+                                <input 
+                                    type="radio" 
+                                    name="fulfillment"
+                                    checked={fulfillmentType === 'meetupPoint'}
+                                    onChange={() => {
+                                        setFulfillmentType('meetupPoint');
+                                    }}
+                                    className='accent-gray-500 mt-1'
+                                />
+                                <div className='flex-1'>
+                                    <p className='text-slate-700 font-medium'>Punto de entrega</p>
+                                    <p className='text-xs text-slate-500'>Recoge en un punto de entrega designado</p>
+                                </div>
+                            </label>
+                        )}
+                    </div>
+                    
+                    {/* Meetup Points Selection */}
+                    {fulfillmentType === 'meetupPoint' && storeInfo.meetup_points?.length > 0 && (
+                        <div className='ml-6 mt-3'>
+                            <label className='block text-sm font-medium text-slate-700 mb-2'>
+                                Selecciona un punto de entrega
+                            </label>
+                            <select
+                                value={selectedMeetupPoint?.id || ''}
+                                onChange={(e) => {
+                                    const point = storeInfo.meetup_points.find(p => p.id === e.target.value);
+                                    setSelectedMeetupPoint(point);
+                                }}
+                                className='w-full px-3 py-2 border border-slate-300 rounded-lg focus:border-[#00C6A2] focus:ring-2 focus:ring-[#00C6A2]/20 outline-none'
+                            >
+                                <option value="">Selecciona un punto...</option>
+                                {storeInfo.meetup_points.map((point) => (
+                                    <option key={point.id} value={point.id}>
+                                        {point.name} - {point.address}
+                                    </option>
+                                ))}
+                            </select>
+                            {selectedMeetupPoint && selectedMeetupPoint.instructions && (
+                                <p className='text-xs text-slate-500 mt-2'>{selectedMeetupPoint.instructions}</p>
+                            )}
+                        </div>
+                    )}
+                    
+                    {isFreeShipping && fulfillmentType === 'delivery' && (
+                        <div className='bg-[#00C6A2]/10 border border-[#00C6A2]/30 rounded-lg p-3 mt-3'>
+                            <p className='text-[#00C6A2] font-semibold text-sm'>🎉 ¡Envío Gratis!</p>
+                            <p className='text-xs text-slate-600 mt-1'>Tu pedido califica para envío gratis (pedidos mayores a $800 MXN)</p>
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* Tip Section */}
             <div className='my-4 py-4 border-y border-slate-200 text-slate-400'>
@@ -1034,7 +1156,8 @@ const OrderSummary = ({ totalPrice, items }) => {
                 {tipType === 'percentage' && (
                     <div className='grid grid-cols-5 gap-2 mb-3'>
                         {tipPercentages.map((percent) => {
-                            const tipAmount = ((subtotal + deliveryCost) * percent) / 100;
+                            const deliveryCostForTip = (fulfillmentType === 'delivery' && !isFreeShipping) ? 180 : 0;
+                            const tipAmount = ((subtotal + deliveryCostForTip) * percent) / 100;
                             return (
                                 <button
                                     key={percent}
@@ -1092,13 +1215,13 @@ const OrderSummary = ({ totalPrice, items }) => {
                 <div className='flex justify-between'>
                     <div className='flex flex-col gap-1 text-slate-400'>
                         <p>Subtotal:</p>
-                        {(deliveryOption || isFreeShipping) && <p>Envío:</p>}
+                        {(fulfillmentType === 'delivery' || isFreeShipping) && <p>Envío:</p>}
                         {tip > 0 && <p>Propina:</p>}
                         {coupon && <p>Cupón:</p>}
                     </div>
                     <div className='flex flex-col gap-1 font-medium text-right'>
                         <p>{currency}{subtotal.toLocaleString()}</p>
-                        {(deliveryOption || isFreeShipping) && (
+                        {(fulfillmentType === 'delivery' || isFreeShipping) && (
                             <p className={isFreeShipping ? 'text-[#00C6A2]' : ''}>
                                 {isFreeShipping ? 'Gratis' : `${currency}${getDeliveryCost()}`}
                             </p>

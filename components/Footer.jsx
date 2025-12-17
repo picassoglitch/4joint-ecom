@@ -76,23 +76,23 @@ const Footer = () => {
     ].filter(item => item.link !== '#') // Only show social icons with links
 
     return (
-        <footer className="mx-6 bg-[#FAFAF6]">
+        <footer className="mx-6 bg-gradient-to-b from-[#FAFAF6] to-white border-t border-[#00C6A2]/10">
             <div className="max-w-7xl mx-auto">
-                <div className="flex flex-col md:flex-row items-start justify-between gap-10 py-10 border-b border-[#00C6A2]/20 text-[#1A1A1A]/70">
+                <div className="flex flex-col md:flex-row items-start justify-between gap-10 py-12 border-b border-[#00C6A2]/20 text-[#1A1A1A]/70">
                     <div>
-                        <Link href="/" className="text-4xl font-bold text-[#1A1A1A]">
+                        <Link href="/" className="text-4xl font-bold text-[#1A1A1A] hover:scale-105 transition-transform inline-block">
                             <span className="text-[#00C6A2]">4</span>joint
                         </Link>
-                        <p className="max-w-[410px] mt-6 text-sm leading-relaxed">Bienvenido a 4joint, tu mercado multivendedor 420 en México. Productos hemp/CBD legales, calidad premium y envíos rápidos. Todo en un solo lugar.</p>
+                        <p className="max-w-[410px] mt-6 text-sm leading-relaxed text-slate-600">Bienvenido a 4joint, tu mercado multivendedor 420 en México. Productos hemp/CBD legales, calidad premium y envíos rápidos. Todo en un solo lugar.</p>
                         {socialIcons.length > 0 && (
-                            <div className="flex items-center gap-3 mt-5">
+                            <div className="flex items-center gap-3 mt-6">
                                 {socialIcons.map((item, i) => (
                                     <Link 
                                         href={item.link} 
                                         key={i} 
                                         target="_blank" 
                                         rel="noopener noreferrer"
-                                        className="flex items-center justify-center w-10 h-10 bg-white/80 hover:bg-[#00C6A2]/10 hover:border border-[#00C6A2]/30 transition rounded-full"
+                                        className="flex items-center justify-center w-11 h-11 bg-white hover:bg-gradient-to-br hover:from-[#00C6A2]/10 hover:to-[#00B894]/10 border border-slate-200 hover:border-[#00C6A2]/40 transition-all rounded-full hover:scale-110 shadow-sm hover:shadow-md"
                                     >
                                         <item.icon />
                                     </Link>
@@ -100,15 +100,15 @@ const Footer = () => {
                             </div>
                         )}
                     </div>
-                    <div className="flex flex-wrap justify-between w-full md:w-[45%] gap-5 text-sm ">
+                    <div className="flex flex-wrap justify-between w-full md:w-[45%] gap-8 text-sm">
                         {linkSections.map((section, index) => (
                             <div key={index}>
-                                <h3 className="font-semibold text-[#1A1A1A] md:mb-5 mb-3">{section.title}</h3>
-                                <ul className="space-y-2.5">
+                                <h3 className="font-bold text-[#1A1A1A] md:mb-5 mb-4 text-base">{section.title}</h3>
+                                <ul className="space-y-3">
                                     {section.links.map((link, i) => (
-                                        <li key={i} className="flex items-center gap-2">
-                                            {link.icon && <link.icon />}
-                                            <Link href={link.path} className="hover:text-[#00C6A2] transition-colors">{link.text}</Link>
+                                        <li key={i} className="flex items-center gap-2 group">
+                                            {link.icon && <span className="text-slate-400 group-hover:text-[#00C6A2] transition-colors"><link.icon /></span>}
+                                            <Link href={link.path} className="hover:text-[#00C6A2] transition-colors font-medium">{link.text}</Link>
                                         </li>
                                     ))}
                                 </ul>

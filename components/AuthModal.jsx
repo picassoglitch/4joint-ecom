@@ -57,7 +57,13 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
       }
     } catch (error) {
       console.error('Auth error:', error)
-      toast.error(error.message || 'Error al autenticar')
+      
+      // Handle network/fetch errors
+      if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
+        toast.error('Error de conexión. Verifica tu internet e intenta de nuevo.')
+      } else {
+        toast.error(error.message || 'Error al autenticar')
+      }
     } finally {
       setLoading(false)
     }
@@ -90,8 +96,8 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1A1A1A]/60 backdrop-blur-sm">
-      <div className="bg-[#FAFAF6] rounded-3xl p-8 max-w-md w-full mx-4 relative border border-[#00C6A2]/20 shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1A1A1A]/80 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="bg-[#FAFAF6] rounded-3xl p-8 max-w-md w-full mx-4 relative border border-[#00C6A2]/20 shadow-2xl animate-in zoom-in-95 duration-200">
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-[#1A1A1A]/60 hover:text-[#1A1A1A] transition-colors"
@@ -159,7 +165,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
           <button
             type="submit"
             disabled={loading}
-            className="w-full px-8 py-3 bg-[#00C6A2] hover:bg-[#00B894] text-white rounded-full font-semibold transition-all hover:scale-105 active:scale-95 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full px-8 py-3 bg-gradient-to-r from-[#00C6A2] to-[#00B894] hover:from-[#00B894] hover:to-[#00A885] text-white rounded-full font-bold transition-all hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
           >
             {loading ? 'Cargando...' : mode === 'login' ? 'Iniciar Sesión' : 'Crear Cuenta'}
           </button>
@@ -177,7 +183,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
         <button
           onClick={handleGoogleAuth}
           disabled={loading}
-          className="w-full px-8 py-3 bg-white hover:bg-[#00C6A2]/5 border-2 border-[#00C6A2]/20 text-[#1A1A1A] rounded-full font-semibold transition-all hover:scale-105 active:scale-95 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          className="w-full px-8 py-3 bg-white hover:bg-gradient-to-r hover:from-[#00C6A2]/5 hover:to-[#00B894]/5 border-2 border-[#00C6A2]/20 hover:border-[#00C6A2]/40 text-[#1A1A1A] rounded-full font-semibold transition-all hover:scale-105 active:scale-95 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center gap-2"
         >
           <svg className="w-5 h-5" viewBox="0 0 24 24">
             <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>

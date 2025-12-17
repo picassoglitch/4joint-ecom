@@ -16,6 +16,12 @@ model User {
     email String
     image String
     cart  Json   @default("{}")
+    
+    // Location fields
+    latitude       Float?
+    longitude      Float?
+    locationPlace  String? // Human-readable place name (ZIP/Colonia/Ciudad)
+    hasCompletedOnboarding Boolean @default(false)
 
     // Relations
     ratings     Rating[]
@@ -35,6 +41,8 @@ model Product {
     category    String
     inStock     Boolean  @default(true)
     storeId     String
+    quantity    Float?   // Quantity (e.g., 1, 3.5, 10)
+    unit        String?  // Unit: "g" (gramos) or "ml" (mililitros)
     createdAt   DateTime @default(now())
     updatedAt   DateTime @updatedAt
 
@@ -49,6 +57,7 @@ enum OrderStatus {
     PROCESSING
     SHIPPED
     DELIVERED
+    DISPATCHED // For courier externo orders
 }
 
 enum PaymentMethod {
@@ -73,6 +82,13 @@ model Order {
     commission    Float         @default(0) // 15% commission for platform
     vendorEarnings Float         @default(0) // 85% earnings for vendor
     orderItems    OrderItem[]
+    
+    // Fulfillment fields
+    fulfillmentType    String?  // "pickup", "delivery", "meetupPoint", "courierExterno"
+    meetupPointId      String?  // ID of selected meetup point
+    courierCost        Float?   @default(0)
+    dispatchStatus     String?  // "pending", "dispatched", "completed"
+    dispatchNotes      String?
 
     // Relations
     user    User    @relation("BuyerRelation", fields: [userId], references: [id])
@@ -158,6 +174,35 @@ model Store {
     contact     String
     createdAt   DateTime @default(now())
     updatedAt   DateTime @updatedAt
+    
+    // Location fields
+    latitude        Float?
+    longitude       Float?
+    serviceRadiusKm Float?  @default(10.0) // Service radius in kilometers
+    serviceColonias Json?   @default("[]") // Array of colonias where store delivers (e.g., ["Roma Norte, Cuauhtémoc", "Condesa, Cuauhtémoc"])
+    showStoreLocation Boolean @default(true) // Whether to show store location or only pickup point
+    showWhatsappContact Boolean @default(false) // Whether to show WhatsApp contact button in checkout
+    whatsappNumber String? // WhatsApp number to display (can be different from contact number)
+    
+    // Fulfillment modes
+    fulfillmentModes Json   @default("{\"pickup\": false, \"delivery\": false, \"meetupPoint\": false}")
+    
+    // Meetup points (JSON array of {name, address, lat, lng, instructions})
+    meetupPoints    Json   @default("[]")
+    
+    // Delivery settings
+    deliveryNotes       String?
+    minOrder            Float?  @default(0)
+    deliveryFeePolicy   String? // "flat", "percent", "included"
+    deliveryFeeAmount   Float?  @default(0)
+    deliveryFeePercent  Float?  @default(0)
+    
+    // Operating hours (JSON: {monday: {open: "09:00", close: "21:00"}, ...})
+    operatingHours      Json?   @default("{}")
+    
+    // Courier settings
+    courierCost          Float?  @default(0) // Cost for external courier
+    courierCostIncluded  Boolean @default(false) // Whether courier cost is included in product price
 
     Product Product[]
     Order   Order[]

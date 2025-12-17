@@ -62,61 +62,65 @@ export default function Cart() {
     }, [cartItems, products]);
 
     return cartArray.length > 0 ? (
-        <div className="min-h-screen mx-6 text-slate-800">
+        <div className="min-h-screen mx-6 text-slate-800 py-8">
 
-            <div className="max-w-7xl mx-auto ">
+            <div className="max-w-7xl mx-auto">
                 {/* Title */}
                 <PageTitle heading="Mi Carrito" text="artículos en tu carrito" linkText="Agregar más" />
 
-                <div className="flex items-start justify-between gap-5 max-lg:flex-col">
+                <div className="flex items-start justify-between gap-8 max-lg:flex-col mt-8">
 
-                    <table className="w-full max-w-4xl text-slate-600 table-auto">
-                        <thead>
-                            <tr className="max-sm:text-sm">
-                                <th className="text-left">Producto</th>
-                                <th>Cantidad</th>
-                                <th>Precio Total</th>
-                                <th className="max-md:hidden">Eliminar</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {
-                                cartArray.map((item, index) => (
-                                    <tr key={index} className="space-x-2">
-                                        <td className="flex gap-3 my-4">
-                                            <div className="flex gap-3 items-center justify-center bg-slate-100 size-18 rounded-md">
-                                                <Image src={item.images[0]} className="h-14 w-auto" alt="" width={45} height={45} />
-                                            </div>
-                                            <div>
-                                                <p className="max-sm:text-sm">{item.name}</p>
-                                                {item.variant && (
-                                                    <p className="text-xs text-[#00C6A2] font-medium">{item.variant.name}</p>
-                                                )}
-                                                <p className="text-xs text-slate-500">{item.category}</p>
-                                                <p>{currency}{item.price}</p>
-                                            </div>
-                                        </td>
-                                        <td className="text-center">
-                                            <Counter productId={item.id} variant={item.variant} cartKey={item.cartKey} />
-                                        </td>
-                                        <td className="text-center">{currency}{(item.price * item.quantity).toLocaleString()}</td>
-                                        <td className="text-center max-md:hidden">
-                                            <button onClick={() => handleDeleteItemFromCart(item.cartKey, item.variant)} className=" text-red-500 hover:bg-red-50 p-2.5 rounded-full active:scale-95 transition-all">
-                                                <Trash2Icon size={18} />
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))
-                            }
-                        </tbody>
-                    </table>
+                    <div className="w-full max-w-4xl bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                        <table className="w-full text-slate-600 table-auto">
+                            <thead className="bg-gradient-to-r from-slate-50 to-slate-100">
+                                <tr className="max-sm:text-sm">
+                                    <th className="text-left p-4 font-semibold text-[#1A1A1A]">Producto</th>
+                                    <th className="p-4 font-semibold text-[#1A1A1A]">Cantidad</th>
+                                    <th className="p-4 font-semibold text-[#1A1A1A]">Precio Total</th>
+                                    <th className="max-md:hidden p-4 font-semibold text-[#1A1A1A]">Eliminar</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {
+                                    cartArray.map((item, index) => (
+                                        <tr key={index} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
+                                            <td className="flex gap-4 my-4 p-4">
+                                                <div className="flex gap-3 items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 size-20 rounded-xl border border-slate-200 shadow-sm">
+                                                    <Image src={item.images[0]} className="h-16 w-auto" alt={item.name} width={60} height={60} />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <p className="max-sm:text-sm font-semibold text-[#1A1A1A]">{item.name}</p>
+                                                    {item.variant && (
+                                                        <p className="text-xs text-[#00C6A2] font-bold mt-1">{item.variant.name}</p>
+                                                    )}
+                                                    <p className="text-xs text-slate-500 mt-1">{item.category}</p>
+                                                    <p className="text-sm font-bold text-[#1A1A1A] mt-2">{currency}{item.price?.toLocaleString('es-MX')}</p>
+                                                </div>
+                                            </td>
+                                            <td className="text-center p-4">
+                                                <Counter productId={item.id} variant={item.variant} cartKey={item.cartKey} />
+                                            </td>
+                                            <td className="text-center p-4 font-bold text-[#1A1A1A]">{currency}{(item.price * item.quantity).toLocaleString('es-MX')}</td>
+                                            <td className="text-center max-md:hidden p-4">
+                                                <button onClick={() => handleDeleteItemFromCart(item.cartKey, item.variant)} className="text-red-500 hover:bg-red-50 p-2.5 rounded-full active:scale-95 transition-all hover:scale-110">
+                                                    <Trash2Icon size={18} />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))
+                                }
+                            </tbody>
+                        </table>
+                    </div>
                     <OrderSummary totalPrice={totalPrice} items={cartArray} />
                 </div>
             </div>
         </div>
     ) : (
-        <div className="min-h-[80vh] mx-6 flex items-center justify-center text-slate-400">
-            <h1 className="text-2xl sm:text-4xl font-semibold">Tu carrito está vacío</h1>
+        <div className="min-h-[80vh] mx-6 flex flex-col items-center justify-center text-slate-400">
+            <div className="text-6xl mb-4">🛒</div>
+            <h1 className="text-2xl sm:text-4xl font-bold text-[#1A1A1A] mb-2">Tu carrito está vacío</h1>
+            <p className="text-slate-500 mb-6">Agrega productos para comenzar</p>
         </div>
     )
 }

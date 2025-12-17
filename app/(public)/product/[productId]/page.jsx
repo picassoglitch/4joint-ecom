@@ -27,9 +27,17 @@ export default function Product() {
         <div className="mx-6">
             <div className="max-w-7xl mx-auto">
 
-                {/* Breadcrums */}
-                <div className="  text-gray-600 text-sm mt-8 mb-5">
-                    Home / Products / {product?.category}
+                {/* Breadcrumbs */}
+                <div className="text-slate-600 text-sm mt-8 mb-5 flex items-center gap-2">
+                    <a href="/" className="hover:text-[#00C6A2] transition-colors">Inicio</a>
+                    <span>/</span>
+                    <a href="/shop" className="hover:text-[#00C6A2] transition-colors">Productos</a>
+                    {product?.category && (
+                        <>
+                            <span>/</span>
+                            <span className="text-[#00C6A2] font-medium">{product.category}</span>
+                        </>
+                    )}
                 </div>
 
                 {/* Product Details */}

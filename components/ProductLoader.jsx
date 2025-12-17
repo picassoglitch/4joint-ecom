@@ -21,6 +21,9 @@ export default function ProductLoader() {
                 const allProducts = await getProducts()
                 
                 console.log(`✅ Loaded ${allProducts?.length || 0} products from database`)
+                if (allProducts && allProducts.length > 0) {
+                    console.log('📦 Sample product:', allProducts[0])
+                }
                 
                 if (!allProducts || allProducts.length === 0) {
                     console.warn('⚠️ No products found. Check if:')
@@ -56,8 +59,24 @@ export default function ProductLoader() {
                 console.log('✅ Products formatted and dispatched to Redux')
                 dispatch(setProduct(formattedProducts))
             } catch (error) {
-                console.error('❌ Error loading products:', error)
-                // Set empty array on error
+                // Better error logging - handle different error types
+                let errorMessage = 'Unknown error'
+                let errorCode = null
+                
+                if (error && typeof error === 'object') {
+                    errorMessage = error.message || error.error_description || JSON.stringify(error)
+                    errorCode = error.code
+                } else if (error) {
+                    errorMessage = String(error)
+                }
+                
+                console.error('❌ Error loading products:', {
+                    message: errorMessage,
+                    code: errorCode,
+                    error: error,
+                })
+                
+                // Set empty array on error to prevent app crash
                 dispatch(setProduct([]))
             }
         }

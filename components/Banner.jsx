@@ -69,17 +69,18 @@ export default function Banner() {
     }
 
     return (
-        <div className="w-full px-6 py-2 font-medium text-sm text-[#1A1A1A] text-center bg-gradient-to-r from-[#00C6A2] via-[#00C6A2] to-[#FFD95E]">
+        <div className="w-full px-6 py-3 font-medium text-sm text-[#1A1A1A] text-center bg-gradient-to-r from-[#00C6A2] via-[#00C6A2] to-[#FFD95E] shadow-md">
             <div className='flex items-center justify-between max-w-7xl mx-auto'>
                 <div className="flex items-center gap-2">
-                    <p className="font-semibold">¡Obtén 1 gr gratis en tu primer pedido!</p>
+                    <span className="text-lg">🎁</span>
+                    <p className="font-bold">¡Obtén 1 gr gratis en tu primer pedido!</p>
                     {!isAuthenticated && (
-                        <span className="text-[10px] opacity-70">*Solo usuarios registrados</span>
+                        <span className="text-[10px] opacity-80 font-medium">*Solo usuarios registrados</span>
                     )}
                 </div>
-                <div className="flex items-center space-x-6">
+                <div className="flex items-center space-x-4">
                     {isAuthenticated ? (
-                        <button onClick={handleClaim} type="button" className="font-semibold text-[#1A1A1A] bg-white/90 hover:bg-white px-7 py-2 rounded-full max-sm:hidden transition-all hover:scale-105 active:scale-95 shadow-md">Reclamar Oferta</button>
+                        <button onClick={handleClaim} type="button" className="font-bold text-[#1A1A1A] bg-white/95 hover:bg-white px-7 py-2.5 rounded-full max-sm:hidden transition-all hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl">Reclamar Oferta</button>
                     ) : (
                         <button 
                             onClick={() => {
@@ -88,12 +89,12 @@ export default function Banner() {
                                 window.dispatchEvent(event);
                             }} 
                             type="button"
-                            className="font-semibold text-[#1A1A1A] bg-white/90 hover:bg-white px-7 py-2 rounded-full max-sm:hidden transition-all hover:scale-105 active:scale-95 shadow-md"
+                            className="font-bold text-[#1A1A1A] bg-white/95 hover:bg-white px-7 py-2.5 rounded-full max-sm:hidden transition-all hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl"
                         >
                             Iniciar Sesión
                         </button>
                     )}
-                    <button onClick={() => setIsOpen(false)} type="button" className="font-normal text-[#1A1A1A] py-2 rounded-full hover:bg-white/20 transition-colors">
+                    <button onClick={() => setIsOpen(false)} type="button" className="font-normal text-[#1A1A1A] p-2 rounded-full hover:bg-white/30 transition-all hover:scale-110">
                         <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <rect y="12.532" width="17.498" height="2.1" rx="1.05" transform="rotate(-45.74 0 12.532)" fill="#1A1A1A" />
                             <rect x="12.533" y="13.915" width="17.498" height="2.1" rx="1.05" transform="rotate(-135.74 12.533 13.915)" fill="#1A1A1A" />

@@ -31,6 +31,8 @@ export default function StoreAddProduct() {
         price: 0,
         category: "",
         customCategory: "",
+        quantity: "",
+        unit: "",
     })
     const [variants, setVariants] = useState([])
     const [useVariants, setUseVariants] = useState(false)
@@ -113,7 +115,7 @@ export default function StoreAddProduct() {
     }
 
     const addVariant = () => {
-        setVariants([...variants, { name: '', price: 0, mrp: 0 }])
+        setVariants([...variants, { name: '', price: 0, mrp: 0, quantity: '', unit: '' }])
     }
 
     const removeVariant = (index) => {
@@ -179,6 +181,8 @@ export default function StoreAddProduct() {
                     name: v.name.trim(),
                     price: parseFloat(v.price) || 0,
                     mrp: parseFloat(v.mrp) || parseFloat(v.price) || 0,
+                    quantity: v.quantity ? parseFloat(v.quantity) : null,
+                    unit: v.unit || null,
                 })).filter(v => v.name && v.price > 0)
                 : []
 
@@ -208,6 +212,8 @@ export default function StoreAddProduct() {
                 images: productImages.length > 0 ? productImages : [], // Ensure it's an array
                 in_stock: true,
                 variants: productVariants.length > 0 ? productVariants : [], // Use empty array instead of null
+                quantity: productInfo.quantity ? parseFloat(productInfo.quantity) : null,
+                unit: productInfo.unit || null,
             }
 
             // Validate required fields
@@ -236,6 +242,8 @@ export default function StoreAddProduct() {
                 price: 0,
                 category: "",
                 customCategory: "",
+                quantity: "",
+                unit: "",
             })
             setImageUrls({ 1: '', 2: '', 3: '', 4: '' })
             setShowCustomCategory(false)
@@ -369,8 +377,8 @@ export default function StoreAddProduct() {
                             </button>
                         </div>
                         {variants.map((variant, index) => (
-                            <div key={index} className="flex gap-3 items-end p-4 bg-white/50 border border-[#00C6A2]/20 rounded-xl">
-                                <div className="flex-1">
+                            <div key={index} className="flex gap-3 items-end p-4 bg-white/50 border border-[#00C6A2]/20 rounded-xl flex-wrap">
+                                <div className="flex-1 min-w-[200px]">
                                     <label className="text-sm text-[#1A1A1A]/70 mb-1 block">Nombre de la opción</label>
                                     <input
                                         type="text"
@@ -379,6 +387,30 @@ export default function StoreAddProduct() {
                                         placeholder="Ej: 1g, Media oz, Una oz"
                                         className="w-full p-2 px-3 outline-none border border-[#00C6A2]/20 rounded-lg focus:border-[#00C6A2] focus:ring-2 focus:ring-[#00C6A2]/20 transition-all"
                                     />
+                                </div>
+                                <div className="w-32">
+                                    <label className="text-sm text-[#1A1A1A]/70 mb-1 block">Cantidad</label>
+                                    <input
+                                        type="number"
+                                        step="0.1"
+                                        min="0"
+                                        value={variant.quantity || ''}
+                                        onChange={(e) => updateVariant(index, 'quantity', e.target.value)}
+                                        placeholder="Ej: 1, 3.5"
+                                        className="w-full p-2 px-3 outline-none border border-[#00C6A2]/20 rounded-lg focus:border-[#00C6A2] focus:ring-2 focus:ring-[#00C6A2]/20 transition-all"
+                                    />
+                                </div>
+                                <div className="w-28">
+                                    <label className="text-sm text-[#1A1A1A]/70 mb-1 block">Unidad</label>
+                                    <select
+                                        value={variant.unit || ''}
+                                        onChange={(e) => updateVariant(index, 'unit', e.target.value)}
+                                        className="w-full p-2 px-3 outline-none border border-[#00C6A2]/20 rounded-lg focus:border-[#00C6A2] focus:ring-2 focus:ring-[#00C6A2]/20 transition-all"
+                                    >
+                                        <option value="">-</option>
+                                        <option value="g">g</option>
+                                        <option value="ml">ml</option>
+                                    </select>
                                 </div>
                                 <div className="w-32">
                                     <label className="text-sm text-[#1A1A1A]/70 mb-1 block">Precio</label>
@@ -456,6 +488,36 @@ export default function StoreAddProduct() {
                     />
                 )}
             </label>
+
+            {/* Quantity and Unit */}
+            <div className="flex gap-5 flex-wrap my-6">
+                <label htmlFor="" className="flex flex-col gap-2">
+                    <span className="text-[#1A1A1A]/80 font-medium">Cantidad <span className="text-[#1A1A1A]/40 text-sm font-normal">(Opcional)</span></span>
+                    <input 
+                        type="number" 
+                        name="quantity" 
+                        onChange={onChangeHandler} 
+                        value={productInfo.quantity} 
+                        placeholder="Ej: 1, 3.5, 10" 
+                        step="0.1"
+                        min="0"
+                        className="w-full max-w-48 p-3 px-4 outline-none border border-[#00C6A2]/20 rounded-xl focus:border-[#00C6A2] focus:ring-2 focus:ring-[#00C6A2]/20 transition-all" 
+                    />
+                </label>
+                <label htmlFor="" className="flex flex-col gap-2">
+                    <span className="text-[#1A1A1A]/80 font-medium">Unidad <span className="text-[#1A1A1A]/40 text-sm font-normal">(Opcional)</span></span>
+                    <select 
+                        name="unit" 
+                        onChange={onChangeHandler} 
+                        value={productInfo.unit} 
+                        className="w-full max-w-48 p-3 px-4 outline-none border border-[#00C6A2]/20 rounded-xl focus:border-[#00C6A2] focus:ring-2 focus:ring-[#00C6A2]/20 transition-all"
+                    >
+                        <option value="">Selecciona unidad</option>
+                        <option value="g">Gramos (g)</option>
+                        <option value="ml">Mililitros (ml)</option>
+                    </select>
+                </label>
+            </div>
 
             <br />
 
