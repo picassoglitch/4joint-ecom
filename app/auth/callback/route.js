@@ -28,7 +28,7 @@ export async function GET(request) {
       
       if (error) {
         console.error('Auth callback error:', error)
-        return NextResponse.redirect(new URL('/?error=auth_failed', request.url))
+        return NextResponse.redirect(new URL('/auth/verify-email?error=auth_failed', request.url))
       }
 
       // Set cookies for the session
@@ -52,8 +52,21 @@ export async function GET(request) {
           path: '/',
         })
 
-        // Also update the client-side session
-        // The client will detect the session from the URL hash on page load
+        // Check if this is an email verification
+        // Check if email was just confirmed (within last 2 minutes to account for processing time)
+        const emailConfirmedAt = data.session.user.email_confirmed_at
+        const isEmailVerification = emailConfirmedAt && 
+          new Date(emailConfirmedAt).getTime() > Date.now() - 120000 // Within last 2 minutes
+        
+        // Also check the type parameter from URL if available
+        const type = requestUrl.searchParams.get('type')
+        const isEmailType = type === 'signup' || type === 'email'
+        
+        // If email was just verified, redirect to verification success page
+        if (isEmailVerification || (isEmailType && emailConfirmedAt)) {
+          // Redirect to verification success page
+          return NextResponse.redirect(new URL('/auth/verify-email?verified=true', request.url))
+        }
       }
     } catch (error) {
       console.error('Unexpected error in auth callback:', error)

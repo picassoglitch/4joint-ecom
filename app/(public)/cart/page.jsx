@@ -5,7 +5,7 @@ import PageTitle from "@/components/PageTitle";
 import { deleteItemFromCart } from "@/lib/features/cart/cartSlice";
 import { Trash2Icon } from "lucide-react";
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
 
 export default function Cart() {
@@ -19,10 +19,13 @@ export default function Cart() {
 
     const [cartArray, setCartArray] = useState([]);
     const [totalPrice, setTotalPrice] = useState(0);
+    const [isVisible, setIsVisible] = useState(true); // Start visible
+    const cartRef = useRef(null);
 
     const createCartArray = () => {
-        setTotalPrice(0);
         const cartArray = [];
+        let total = 0;
+        
         for (const [key, cartItem] of Object.entries(cartItems)) {
             // Handle both old format (number) and new format (object with quantity and variant)
             const quantity = typeof cartItem === 'number' ? cartItem : cartItem.quantity;
@@ -43,10 +46,11 @@ export default function Cart() {
                     price: itemPrice, // Override with variant price
                     cartKey: key, // Store the cart key for deletion
                 });
-                setTotalPrice(prev => prev + itemPrice * quantity);
+                total += itemPrice * quantity;
             }
         }
         setCartArray(cartArray);
+        setTotalPrice(total);
     }
 
     const handleDeleteItemFromCart = (cartKey, variant) => {
@@ -56,21 +60,30 @@ export default function Cart() {
     }
 
     useEffect(() => {
-        if (products.length > 0) {
-            createCartArray();
-        }
+        // Always try to create cart array, even if products aren't loaded yet
+        // This ensures cart items are shown as soon as products are available
+        createCartArray();
     }, [cartItems, products]);
 
-    return cartArray.length > 0 ? (
-        <div className="min-h-screen mx-6 text-slate-800 py-8">
+    // Ensure content is visible when cart has items
+    useEffect(() => {
+        if (cartArray.length > 0) {
+            setIsVisible(true);
+        }
+    }, [cartArray.length]);
 
+    return cartArray.length > 0 ? (
+        <div 
+            ref={cartRef}
+            className="min-h-screen mx-6 text-slate-800 py-6"
+        >
             <div className="max-w-7xl mx-auto">
-                {/* Title */}
+                {/* Title - More compact */}
                 <PageTitle heading="Mi Carrito" text="artículos en tu carrito" linkText="Agregar más" />
 
-                <div className="flex items-start justify-between gap-8 max-lg:flex-col mt-8">
+                <div className="flex items-start justify-between gap-6 max-lg:flex-col mt-6">
 
-                    <div className="w-full max-w-4xl bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="w-full max-w-4xl bg-white/80 backdrop-blur-sm rounded-2xl border border-[#00C6A2]/10 shadow-sm hover:shadow-md transition-all overflow-hidden">
                         <table className="w-full text-slate-600 table-auto">
                             <thead className="bg-gradient-to-r from-slate-50 to-slate-100">
                                 <tr className="max-sm:text-sm">
@@ -83,13 +96,13 @@ export default function Cart() {
                             <tbody>
                                 {
                                     cartArray.map((item, index) => (
-                                        <tr key={index} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
+                                        <tr key={index} className="border-b border-slate-100 hover:bg-[#00C6A2]/5 transition-all duration-200 group">
                                             <td className="flex gap-4 my-4 p-4">
-                                                <div className="flex gap-3 items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 size-20 rounded-xl border border-slate-200 shadow-sm">
+                                                <div className="flex gap-3 items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 size-20 rounded-xl border border-slate-200 shadow-sm group-hover:shadow-md group-hover:scale-105 transition-all duration-200">
                                                     <Image src={item.images[0]} className="h-16 w-auto" alt={item.name} width={60} height={60} />
                                                 </div>
                                                 <div className="flex-1">
-                                                    <p className="max-sm:text-sm font-semibold text-[#1A1A1A]">{item.name}</p>
+                                                    <p className="max-sm:text-sm font-semibold text-[#1A1A1A] group-hover:text-[#00C6A2] transition-colors">{item.name}</p>
                                                     {item.variant && (
                                                         <p className="text-xs text-[#00C6A2] font-bold mt-1">{item.variant.name}</p>
                                                     )}
@@ -118,9 +131,15 @@ export default function Cart() {
         </div>
     ) : (
         <div className="min-h-[80vh] mx-6 flex flex-col items-center justify-center text-slate-400">
-            <div className="text-6xl mb-4">🛒</div>
+            <div className="text-6xl mb-4 animate-bounce">🛒</div>
             <h1 className="text-2xl sm:text-4xl font-bold text-[#1A1A1A] mb-2">Tu carrito está vacío</h1>
             <p className="text-slate-500 mb-6">Agrega productos para comenzar</p>
+            <a 
+                href="/shop" 
+                className="px-8 py-3 bg-[#00C6A2] hover:bg-[#00B894] text-white rounded-full font-semibold transition-all hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl"
+            >
+                Explorar Productos
+            </a>
         </div>
     )
 }

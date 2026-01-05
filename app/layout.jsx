@@ -29,7 +29,8 @@ export const metadata = {
 export default function RootLayout({ children }) {
     return (
         <html lang="es-MX">
-            <body className={`${inter.className} antialiased bg-[#FAFAF6]`} style={{ fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}>
+            {/* RESPONSIVE FIX: Prevent horizontal overflow on mobile */}
+            <body className={`${inter.className} antialiased bg-[#FAFAF6] overflow-x-hidden`} style={{ fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}>
                 <StoreProvider>
                     <Toaster 
                         position="top-center"

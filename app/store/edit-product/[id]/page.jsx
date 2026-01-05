@@ -4,11 +4,13 @@ import Image from "next/image"
 import { useState, useRef, useEffect } from "react"
 import { toast } from "react-hot-toast"
 import { uploadImage } from "@/lib/supabase/storage"
+import { getImageBlobUrl, revokeBlobUrl } from "@/lib/utils/imageLoader"
 import { Upload, Plus, X, Save } from "lucide-react"
 import { getCurrentUser } from "@/lib/supabase/auth"
 import { useRouter, useParams } from "next/navigation"
 import { getProductById, updateProduct } from "@/lib/supabase/database"
 import Loading from "@/components/Loading"
+import ImageEditor from "@/components/store/ImageEditor"
 
 export default function StoreEditProduct() {
     const router = useRouter()
@@ -24,7 +26,28 @@ export default function StoreEditProduct() {
     const categories = ['Extractos', 'Flores', 'Otra (especificar)']
 
     const [imageUrls, setImageUrls] = useState({ 1: '', 2: '', 3: '', 4: '' })
+    const [imageBlobUrls, setImageBlobUrls] = useState({ 1: '', 2: '', 3: '', 4: '' }) // Blob URLs for images with incorrect Content-Type
+    const [imageErrors, setImageErrors] = useState({ 1: false, 2: false, 3: false, 4: false })
     const [uploading, setUploading] = useState({ 1: false, 2: false, 3: false, 4: false })
+    
+    // FIX: Reset error when imageUrl changes (new upload)
+    useEffect(() => {
+        Object.keys(imageUrls).forEach(key => {
+            const url = imageUrls[key]
+            if (url && typeof url === 'string' && url.trim() !== '') {
+                // Reset error when URL exists
+                setImageErrors(prev => {
+                    if (prev[key]) {
+                        return { ...prev, [key]: false }
+                    }
+                    return prev
+                })
+            }
+        })
+    }, [imageUrls])
+    const [editorOpen, setEditorOpen] = useState(false)
+    const [editorFile, setEditorFile] = useState(null)
+    const [editorImageKey, setEditorImageKey] = useState(null)
     const fileInputRefs = {
         1: useRef(null),
         2: useRef(null),
@@ -38,8 +61,6 @@ export default function StoreEditProduct() {
         price: 0,
         category: "",
         customCategory: "",
-        quantity: "",
-        unit: "",
     })
     const [variants, setVariants] = useState([])
     const [useVariants, setUseVariants] = useState(false)
@@ -81,17 +102,45 @@ export default function StoreEditProduct() {
                     price: product.price || 0,
                     category: product.category || "",
                     customCategory: product.category && !categories.includes(product.category) ? product.category : "",
-                    quantity: product.quantity ? String(product.quantity) : "",
-                    unit: product.unit || "",
                 })
 
-                // Set images
+                // Set images - normalize URLs from DB
+                // Ensure we store full Supabase URLs for proper retrieval
                 if (product.images && product.images.length > 0) {
                     const imageMap = { 1: '', 2: '', 3: '', 4: '' }
                     product.images.slice(0, 4).forEach((img, idx) => {
-                        imageMap[(idx + 1)] = img
+                        if (img && typeof img === 'string' && img.trim() !== '') {
+                            // If it's already a full URL, use it as-is
+                            if (img.startsWith('http://') || img.startsWith('https://')) {
+                                imageMap[(idx + 1)] = img
+                            } else {
+                                // Build full Supabase URL
+                                const SUPABASE_BASE = 'https://yqttcfpeebdycpyjmnrv.supabase.co/storage/v1/object/public/product-images/'
+                                const cleanPath = img.startsWith('/') ? img.slice(1) : img
+                                imageMap[(idx + 1)] = `${SUPABASE_BASE}${cleanPath}`
+                            }
+                        }
                     })
                     setImageUrls(imageMap)
+                    setImageErrors({ 1: false, 2: false, 3: false, 4: false })
+                    
+                    // Convert images to blob URLs if they have incorrect Content-Type
+                    // This allows images with application/json to display correctly
+                    const blobUrlMap = { 1: '', 2: '', 3: '', 4: '' }
+                    const blobPromises = Object.entries(imageMap).map(async ([key, url]) => {
+                        if (url) {
+                            try {
+                                const blobUrl = await getImageBlobUrl(url)
+                                if (blobUrl && blobUrl.startsWith('blob:')) {
+                                    blobUrlMap[key] = blobUrl
+                                }
+                            } catch (error) {
+                                console.error(`Error creating blob URL for image ${key}:`, error)
+                            }
+                        }
+                    })
+                    await Promise.all(blobPromises)
+                    setImageBlobUrls(blobUrlMap)
                 }
 
                 // Set variants
@@ -130,34 +179,166 @@ export default function StoreEditProduct() {
             return
         }
 
-        if (file.size > 5 * 1024 * 1024) {
-            toast.error('La imagen debe ser menor a 5MB')
+        // Validate file size (max 10MB - increased for editing)
+        if (file.size > 10 * 1024 * 1024) {
+            toast.error('La imagen debe ser menor a 10MB')
             return
         }
 
-        setUploading({ ...uploading, [imageKey]: true })
+        // Open image editor instead of uploading directly
+        setEditorFile(file)
+        setEditorImageKey(imageKey)
+        setEditorOpen(true)
+        
+        // Reset file input
+        if (fileInputRefs[imageKey].current) {
+            fileInputRefs[imageKey].current.value = ''
+        }
+    }
+
+    const handleEditorSave = async (croppedFile) => {
+        if (!editorImageKey || !croppedFile) return
+
+        const imageKey = editorImageKey
+        setUploading(prev => ({ ...prev, [imageKey]: true }))
+        setImageErrors(prev => ({ ...prev, [imageKey]: false }))
 
         try {
-            const url = await uploadImage(file, 'products')
-            setImageUrls({ ...imageUrls, [imageKey]: url })
+            // Verify file type before upload
+            if (process.env.NODE_ENV !== 'production') {
+                console.log('File before upload:', {
+                    name: croppedFile.name,
+                    type: croppedFile.type,
+                    size: croppedFile.size,
+                    isFile: croppedFile instanceof File,
+                    isBlob: croppedFile instanceof Blob
+                })
+            }
+            
+            // CRITICAL: Ensure file has correct MIME type
+            // Read as ArrayBuffer and recreate to guarantee correct type
+            if (!croppedFile.type || !croppedFile.type.startsWith('image/')) {
+                console.error('Invalid file type detected:', croppedFile.type)
+                // Read file as ArrayBuffer
+                const arrayBuffer = await croppedFile.arrayBuffer()
+                // Create new File with explicit JPEG type
+                const fixedFile = new File([arrayBuffer], croppedFile.name.replace(/\.[^/.]+$/, '') + '.jpg', {
+                    type: 'image/jpeg',
+                    lastModified: croppedFile.lastModified || Date.now()
+                })
+                console.log('Fixed file type:', {
+                    oldType: croppedFile.type,
+                    newType: fixedFile.type,
+                    newName: fixedFile.name
+                })
+                croppedFile = fixedFile
+            } else if (croppedFile.type !== 'image/jpeg') {
+                // Even if it's an image, ensure it's JPEG
+                console.warn('File type is image but not JPEG:', croppedFile.type)
+                const arrayBuffer = await croppedFile.arrayBuffer()
+                const fixedFile = new File([arrayBuffer], croppedFile.name.replace(/\.[^/.]+$/, '') + '.jpg', {
+                    type: 'image/jpeg',
+                    lastModified: croppedFile.lastModified || Date.now()
+                })
+                croppedFile = fixedFile
+            }
+            
+            // Final verification
+            if (croppedFile.type !== 'image/jpeg') {
+                throw new Error(`File type is still incorrect after fix: ${croppedFile.type}`)
+            }
+            
+            // Upload image and get public URL
+            const url = await uploadImage(croppedFile, 'products')
+            
+            if (!url || typeof url !== 'string' || !url.startsWith('http')) {
+                throw new Error('URL de imagen inválida')
+            }
+            
+            // FIX: Update state immediately with the full public URL
+            // Use functional update to ensure we get the latest state
+            setImageUrls(prev => {
+                const updated = { ...prev, [imageKey]: url }
+                // Log for debugging
+                if (process.env.NODE_ENV !== 'production') {
+                    console.log('Image URL state updated:', {
+                        key: imageKey,
+                        url: url,
+                        allUrls: updated
+                    })
+                }
+                return updated
+            })
+            
+            // Create blob URL for the new image to ensure correct Content-Type
+            try {
+                const blobUrl = await getImageBlobUrl(url)
+                if (blobUrl && blobUrl.startsWith('blob:')) {
+                    setImageBlobUrls(prev => ({ ...prev, [imageKey]: blobUrl }))
+                }
+            } catch (error) {
+                console.error('Error creating blob URL for new image:', error)
+            }
+            
+            // FIX: Reset error state when new URL is set
+            setImageErrors(prev => ({ ...prev, [imageKey]: false }))
+            
             toast.success('Imagen subida exitosamente')
         } catch (error) {
             console.error('Error uploading image:', error)
             toast.error(error.message || 'Error al subir la imagen')
-            if (error.message?.includes('iniciar sesión')) {
-                router.push('/')
-            }
+            setImageErrors(prev => ({ ...prev, [imageKey]: true }))
         } finally {
-            setUploading({ ...uploading, [imageKey]: false })
+            setUploading(prev => ({ ...prev, [imageKey]: false }))
         }
     }
 
-    const removeImage = (imageKey) => {
-        setImageUrls({ ...imageUrls, [imageKey]: '' })
+    const handleEditorClose = () => {
+        setEditorOpen(false)
+        setEditorFile(null)
+        setEditorImageKey(null)
     }
 
+    const removeImage = (imageKey) => {
+        // Clean up blob URL if it exists
+        const blobUrl = imageBlobUrls[imageKey]
+        if (blobUrl) {
+            revokeBlobUrl(blobUrl)
+        }
+        
+        setImageUrls(prev => ({ ...prev, [imageKey]: '' }))
+        setImageBlobUrls(prev => ({ ...prev, [imageKey]: '' }))
+        setImageErrors(prev => ({ ...prev, [imageKey]: false }))
+    }
+    
+    // Cleanup blob URLs on unmount
+    useEffect(() => {
+        return () => {
+            // Clean up all blob URLs when component unmounts
+            setImageBlobUrls(prev => {
+                Object.values(prev).forEach(blobUrl => {
+                    if (blobUrl) {
+                        revokeBlobUrl(blobUrl)
+                    }
+                })
+                return prev
+            })
+        }
+    }, [])
+    
+    // Cleanup blob URLs on unmount
+    useEffect(() => {
+        return () => {
+            Object.values(imageBlobUrls).forEach(blobUrl => {
+                if (blobUrl) {
+                    revokeBlobUrl(blobUrl)
+                }
+            })
+        }
+    }, [])
+
     const addVariant = () => {
-        setVariants([...variants, { name: '', price: 0, mrp: 0, quantity: '', unit: '' }])
+        setVariants([...variants, { name: '', price: 0, mrp: 0 }])
     }
 
     const removeVariant = (index) => {
@@ -188,13 +369,44 @@ export default function StoreEditProduct() {
                 return
             }
 
-            // Get all image URLs
-            const images = Object.values(imageUrls).filter(url => url.trim() !== '')
+            // Get all image URLs - ensure they're full Supabase URLs
+            // These should already be full URLs from uploadImage, but normalize to be safe
+            // Get all image URLs - only keep full HTTP URLs
+            const images = Object.values(imageUrls)
+                .filter(url => url && typeof url === 'string' && url.trim() !== '')
+                .map(url => url.trim())
+                .filter(url => {
+                    // Validate URL format
+                    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                        if (process.env.NODE_ENV !== 'production') {
+                            console.warn('Invalid image URL format (not HTTP):', url)
+                        }
+                        return false
+                    }
+                    // Ensure URL is complete (at least 50 chars for a valid Supabase URL)
+                    if (url.length < 50) {
+                        if (process.env.NODE_ENV !== 'production') {
+                            console.warn('Image URL seems truncated (too short):', url)
+                        }
+                        return false
+                    }
+                    return true
+                })
 
             if (images.length === 0) {
-                toast.error('Por favor sube al menos una imagen')
+                toast.error('Por favor sube al menos una imagen válida')
                 setSaving(false)
                 return
+            }
+
+            // Log images in development to verify they're complete
+            if (process.env.NODE_ENV !== 'production') {
+                console.log('Saving product with images:', images.map((img, idx) => ({
+                    index: idx + 1,
+                    url: img,
+                    length: img.length,
+                    isValid: img.startsWith('https://') && img.length > 50
+                })))
             }
 
             // Determine final category
@@ -209,8 +421,6 @@ export default function StoreEditProduct() {
                 category: finalCategory,
                 images: images,
                 in_stock: true,
-                quantity: productInfo.quantity ? parseFloat(productInfo.quantity) : null,
-                unit: productInfo.unit || null,
             }
 
             // Handle variants
@@ -227,8 +437,6 @@ export default function StoreEditProduct() {
                     name: v.name.trim(),
                     price: parseFloat(v.price),
                     mrp: parseFloat(v.mrp) || parseFloat(v.price),
-                    quantity: v.quantity ? parseFloat(v.quantity) : null,
-                    unit: v.unit || null,
                 }))
 
                 // Set price to minimum variant price
@@ -253,23 +461,7 @@ export default function StoreEditProduct() {
             router.push('/store/manage-product')
         } catch (error) {
             console.error('Error updating product:', error)
-            
-            // Better error handling
-            let errorMessage = 'Error al actualizar el producto'
-            
-            if (error?.message) {
-                errorMessage = error.message
-            } else if (typeof error === 'string') {
-                errorMessage = error
-            } else if (error?.error_description) {
-                errorMessage = error.error_description
-            } else if (error?.details) {
-                errorMessage = error.details
-            } else if (error?.code) {
-                errorMessage = `Error ${error.code}: ${error.message || 'Error desconocido'}`
-            }
-            
-            toast.error(errorMessage)
+            toast.error(error.message || 'Error al actualizar el producto')
         } finally {
             setSaving(false)
         }
@@ -278,54 +470,217 @@ export default function StoreEditProduct() {
     if (checkingAuth || loading) return <Loading />
 
     return (
-        <div className="max-w-4xl mx-auto">
-            <h1 className="text-2xl text-slate-500 mb-5">Editar <span className="text-slate-800 font-medium">Producto</span></h1>
-            
-            <form onSubmit={onSubmitHandler} className="space-y-6">
+        <>
+            <ImageEditor
+                isOpen={editorOpen}
+                imageFile={editorFile}
+                onSave={handleEditorSave}
+                onClose={handleEditorClose}
+            />
+            <div className="max-w-4xl mx-auto">
+                <h1 className="text-2xl text-slate-500 mb-5">Editar <span className="text-slate-800 font-medium">Producto</span></h1>
+                
+                <form onSubmit={onSubmitHandler} className="space-y-6">
                 {/* Images */}
                 <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">Imágenes del Producto *</label>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {[1, 2, 3, 4].map((key) => (
-                            <div key={key} className="relative">
-                                {imageUrls[key] ? (
-                                    <div className="relative group">
-                                        <Image
-                                            src={imageUrls[key]}
-                                            alt={`Imagen ${key}`}
-                                            width={200}
-                                            height={200}
-                                            className="w-full h-32 object-cover rounded-lg border-2 border-slate-200"
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => removeImage(key)}
-                                            className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                                        >
-                                            <X size={16} />
-                                        </button>
-                                    </div>
-                                ) : (
+                        {[1, 2, 3, 4].map((key) => {
+                            // FIX: Get current image URL from state - ensure it's a string
+                            const imageUrl = (imageUrls[key] && typeof imageUrls[key] === 'string') ? imageUrls[key].trim() : ''
+                            const blobUrl = imageBlobUrls[key] || '' // Use blob URL if available (fixes Content-Type issues)
+                            const displayUrl = blobUrl || imageUrl // Prefer blob URL, fallback to original
+                            const hasError = imageErrors[key] || false
+                            const isUploading = uploading[key] || false
+                            
+                            // FIX: Show image container if we have a URL (regardless of hasError)
+                            // Only show "Sin imagen" upload area if no URL at all
+                            const hasImage = imageUrl !== ''
+                            
+                            return (
+                                <div key={key} className="relative">
+                                    {hasImage ? (
+                                        <div className="relative group">
+                                            {hasError ? (
+                                                // Fallback: Use regular img tag if Next.js Image fails
+                                                <img
+                                                    src={displayUrl}
+                                                    alt={`Imagen ${key}`}
+                                                    className="w-full h-32 object-cover rounded-lg border-2 border-slate-200"
+                                                    onLoad={() => {
+                                                        // If regular img loads successfully, reset error
+                                                        setImageErrors(prev => {
+                                                            if (prev[key]) {
+                                                                return { ...prev, [key]: false }
+                                                            }
+                                                            return prev
+                                                        })
+                                                    }}
+                                                    onError={async (e) => {
+                                                        // Even regular img failed - diagnose the issue
+                                                        if (process.env.NODE_ENV !== 'production') {
+                                                            console.error('❌ Both Next.js Image and regular img failed for:', imageUrl)
+                                                            
+                                                            // Try to fetch the full image to see what's wrong
+                                                            try {
+                                                                const response = await fetch(imageUrl, { 
+                                                                    method: 'GET',
+                                                                    mode: 'cors'
+                                                                })
+                                                                
+                                                                console.error('Full image fetch test:', {
+                                                                    status: response.status,
+                                                                    statusText: response.statusText,
+                                                                    ok: response.ok,
+                                                                    headers: {
+                                                                        'content-type': response.headers.get('content-type'),
+                                                                        'content-length': response.headers.get('content-length'),
+                                                                        'access-control-allow-origin': response.headers.get('access-control-allow-origin'),
+                                                                        'cache-control': response.headers.get('cache-control')
+                                                                    }
+                                                                })
+                                                                
+                                                                // Try to read as blob to see if it's actually an image
+                                                                if (response.ok) {
+                                                                    const blob = await response.blob()
+                                                                    console.error('Image blob info:', {
+                                                                        size: blob.size,
+                                                                        type: blob.type,
+                                                                        isImage: blob.type.startsWith('image/')
+                                                                    })
+                                                                    
+                                                                    if (!blob.type.startsWith('image/')) {
+                                                                        console.error('⚠️ WARNING: File is not an image! Content-Type:', blob.type)
+                                                                    }
+                                                                }
+                                                            } catch (fetchError) {
+                                                                console.error('Full image fetch error:', {
+                                                                    message: fetchError.message,
+                                                                    name: fetchError.name
+                                                                })
+                                                            }
+                                                        }
+                                                    }}
+                                                />
+                                            ) : (
+                                                <Image
+                                                    src={displayUrl}
+                                                    alt={`Imagen ${key}`}
+                                                    width={200}
+                                                    height={200}
+                                                    className="w-full h-32 object-cover rounded-lg border-2 border-slate-200"
+                                                    unoptimized={true}
+                                                    onLoad={() => {
+                                                        // FIX: Reset error on successful load
+                                                        setImageErrors(prev => {
+                                                            if (prev[key]) {
+                                                                return { ...prev, [key]: false }
+                                                            }
+                                                            return prev
+                                                        })
+                                                    }}
+                                                    onError={async (e) => {
+                                                    // FIX: Show error when image fails to load - no placeholder fallback
+                                                    if (imageUrl && !hasError && e?.currentTarget) {
+                                                        const currentSrc = e.currentTarget.src || ''
+                                                        // Only set error if we're actually trying to load the imageUrl
+                                                        if (currentSrc.includes(imageUrl) || currentSrc === imageUrl) {
+                                                            setImageErrors(prev => ({ ...prev, [key]: true }))
+                                                            
+                                                            // Diagnose the issue in development
+                                                            if (process.env.NODE_ENV !== 'production') {
+                                                                const errorInfo = {
+                                                                    slot: key,
+                                                                    imageUrl: imageUrl || 'NO_URL',
+                                                                    urlLength: imageUrl ? imageUrl.length : 0,
+                                                                    currentSrc: currentSrc || 'NO_SRC',
+                                                                    isCompleteUrl: imageUrl ? (imageUrl.startsWith('https://') && imageUrl.length > 50) : false,
+                                                                    eventType: e?.type || 'unknown',
+                                                                    targetSrc: e?.currentTarget?.src || 'NO_TARGET_SRC'
+                                                                }
+                                                                console.error('Image load error:', errorInfo)
+                                                                console.error('Full error details:', {
+                                                                    error: e,
+                                                                    currentTarget: e?.currentTarget,
+                                                                    target: e?.target
+                                                                })
+                                                                
+                                                                // Try to fetch the image directly to diagnose the issue
+                                                                try {
+                                                                    const response = await fetch(imageUrl, { 
+                                                                        method: 'HEAD',
+                                                                        mode: 'cors'
+                                                                    })
+                                                                    if (response.ok) {
+                                                                        console.warn('✅ Image is accessible (status 200) but Next.js Image failed. Using regular <img> tag as fallback.', {
+                                                                            status: response.status,
+                                                                            statusText: response.statusText,
+                                                                            headers: {
+                                                                                'content-type': response.headers.get('content-type'),
+                                                                                'access-control-allow-origin': response.headers.get('access-control-allow-origin'),
+                                                                                'content-length': response.headers.get('content-length')
+                                                                            }
+                                                                        })
+                                                                    } else {
+                                                                        console.error('❌ Image fetch test failed:', {
+                                                                            status: response.status,
+                                                                            statusText: response.statusText,
+                                                                            ok: response.ok,
+                                                                            headers: {
+                                                                                'content-type': response.headers.get('content-type'),
+                                                                                'access-control-allow-origin': response.headers.get('access-control-allow-origin')
+                                                                            }
+                                                                        })
+                                                                    }
+                                                                } catch (fetchError) {
+                                                                    console.error('Image fetch error:', {
+                                                                        message: fetchError.message,
+                                                                        name: fetchError.name,
+                                                                        stack: fetchError.stack
+                                                                    })
+                                                                }
+                                                            }
+                                                            
+                                                            // Show error toast with more details
+                                                            toast.error(`Error al cargar imagen ${key}${imageUrl.length < 50 ? ' (URL parece truncada)' : ''}`)
+                                                        }
+                                                    }
+                                                }}
+                                                />
+                                            )}
+                                            <button
+                                                type="button"
+                                                onClick={() => removeImage(key)}
+                                                className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                            >
+                                                <X size={16} />
+                                            </button>
+                                        </div>
+                                    ) : (
                                     <div
-                                        onClick={() => fileInputRefs[key].current?.click()}
+                                        onClick={() => !isUploading && fileInputRefs[key].current?.click()}
                                         className="w-full h-32 border-2 border-dashed border-slate-300 rounded-lg flex items-center justify-center cursor-pointer hover:border-[#00C6A2] transition-colors"
                                     >
-                                        {uploading[key] ? (
+                                        {isUploading ? (
                                             <span className="text-sm text-slate-400">Subiendo...</span>
                                         ) : (
-                                            <Upload size={24} className="text-slate-400" />
+                                            <>
+                                                <Upload size={24} className="text-slate-400" />
+                                                <span className="text-xs text-slate-400 ml-2">Sin imagen</span>
+                                            </>
                                         )}
                                     </div>
-                                )}
-                                <input
-                                    ref={fileInputRefs[key]}
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={(e) => handleImageSelect(e, key)}
-                                    className="hidden"
-                                />
-                            </div>
-                        ))}
+                                    )}
+                                    <input
+                                        ref={fileInputRefs[key]}
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={(e) => handleImageSelect(e, key)}
+                                        className="hidden"
+                                    />
+                                </div>
+                            )
+                        })}
                     </div>
                 </div>
 
@@ -391,34 +746,6 @@ export default function StoreEditProduct() {
                             className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#00C6A2] focus:border-transparent"
                         />
                     </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">Cantidad <span className="text-slate-400 text-xs">(Opcional)</span></label>
-                        <input
-                            type="number"
-                            name="quantity"
-                            value={productInfo.quantity}
-                            onChange={(e) => setProductInfo({ ...productInfo, [e.target.name]: e.target.value })}
-                            placeholder="Ej: 1, 3.5, 10"
-                            step="0.1"
-                            min="0"
-                            className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#00C6A2] focus:border-transparent"
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">Unidad <span className="text-slate-400 text-xs">(Opcional)</span></label>
-                        <select
-                            name="unit"
-                            value={productInfo.unit}
-                            onChange={(e) => setProductInfo({ ...productInfo, [e.target.name]: e.target.value })}
-                            className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#00C6A2] focus:border-transparent"
-                        >
-                            <option value="">Selecciona unidad</option>
-                            <option value="g">Gramos (g)</option>
-                            <option value="ml">Mililitros (ml)</option>
-                        </select>
-                    </div>
                 </div>
 
                 {/* Variants */}
@@ -436,57 +763,33 @@ export default function StoreEditProduct() {
                     {useVariants ? (
                         <div className="space-y-3 mt-3">
                             {variants.map((variant, index) => (
-                                <div key={index} className="flex gap-2 items-end flex-wrap">
-                                    <div className="flex-1 min-w-[150px]">
+                                <div key={index} className="flex gap-2 items-end">
+                                    <div className="flex-1">
                                         <label className="block text-xs text-slate-600 mb-1">Nombre (ej: 1g, Media oz)</label>
                                         <input
                                             type="text"
-                                            value={variant.name || ''}
+                                            value={variant.name}
                                             onChange={(e) => updateVariant(index, 'name', e.target.value)}
                                             placeholder="Ej: 1g"
                                             className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
                                         />
                                     </div>
-                                    <div className="w-24">
-                                        <label className="block text-xs text-slate-600 mb-1">Cantidad</label>
-                                        <input
-                                            type="number"
-                                            step="0.1"
-                                            min="0"
-                                            value={variant.quantity || ''}
-                                            onChange={(e) => updateVariant(index, 'quantity', e.target.value)}
-                                            placeholder="Ej: 1"
-                                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                                        />
-                                    </div>
-                                    <div className="w-20">
-                                        <label className="block text-xs text-slate-600 mb-1">Unidad</label>
-                                        <select
-                                            value={variant.unit || ''}
-                                            onChange={(e) => updateVariant(index, 'unit', e.target.value)}
-                                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                                        >
-                                            <option value="">-</option>
-                                            <option value="g">g</option>
-                                            <option value="ml">ml</option>
-                                        </select>
-                                    </div>
-                                    <div className="flex-1 min-w-[120px]">
+                                    <div className="flex-1">
                                         <label className="block text-xs text-slate-600 mb-1">Precio (MXN)</label>
                                         <input
                                             type="number"
-                                            value={variant.price || 0}
+                                            value={variant.price}
                                             onChange={(e) => updateVariant(index, 'price', e.target.value)}
                                             min="0"
                                             step="0.01"
                                             className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
                                         />
                                     </div>
-                                    <div className="flex-1 min-w-[120px]">
+                                    <div className="flex-1">
                                         <label className="block text-xs text-slate-600 mb-1">Precio Original (MXN)</label>
                                         <input
                                             type="number"
-                                            value={variant.mrp || 0}
+                                            value={variant.mrp}
                                             onChange={(e) => updateVariant(index, 'mrp', e.target.value)}
                                             min="0"
                                             step="0.01"
@@ -560,8 +863,9 @@ export default function StoreEditProduct() {
                         Cancelar
                     </button>
                 </div>
-            </form>
-        </div>
+                </form>
+            </div>
+        </>
     )
 }
 

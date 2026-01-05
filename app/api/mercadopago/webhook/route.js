@@ -22,13 +22,35 @@ export async function POST(request) {
       const externalReference = data.external_reference; // This should be the order_id
 
       if (supabase && externalReference) {
+        // Get vendor info to check if order approval is required
+        const { data: orderData } = await supabase
+          .from('orders')
+          .select('vendor_id')
+          .eq('id', externalReference)
+          .single()
+
+        let requireApproval = false
+        if (orderData?.vendor_id) {
+          const { data: vendorData } = await supabase
+            .from('vendors')
+            .select('require_order_approval')
+            .eq('id', orderData.vendor_id)
+            .single()
+          
+          requireApproval = vendorData?.require_order_approval || false
+        }
+
         // Update order status based on payment
         if (paymentStatus === 'approved') {
+          // If vendor requires approval, keep status as ORDER_PLACED
+          // Otherwise, move to PROCESSING
+          const newStatus = requireApproval ? 'ORDER_PLACED' : 'PROCESSING'
+          
           await supabase
             .from('orders')
             .update({ 
               is_paid: true,
-              status: 'PROCESSING',
+              status: newStatus,
               payment_id: paymentId.toString(),
               payment_provider: 'MERCADOPAGO',
             })

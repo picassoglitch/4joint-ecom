@@ -4,6 +4,7 @@ import Loading from "@/components/Loading"
 import { getOrders, updateOrderStatus } from "@/lib/supabase/database"
 import { getCurrentUser } from "@/lib/supabase/auth"
 import toast from "react-hot-toast"
+import { getSafeImageSource } from "@/lib/utils/image"
 
 export default function StoreOrders() {
     const [orders, setOrders] = useState([])
@@ -206,9 +207,19 @@ export default function StoreOrders() {
                                         <div key={i} className="flex items-center gap-4 border border-[#00C6A2]/20 rounded-xl p-3 bg-white shadow-sm">
                                             {item.product?.images?.[0] && (
                                                 <img
-                                                    src={item.product.images[0]?.src || item.product.images[0]}
+                                                    src={getSafeImageSource(item.product.images[0]?.src || item.product.images[0], item.product?.id)}
                                                     alt={item.product?.name}
                                                     className="w-20 h-20 object-cover rounded-xl"
+                                                    onError={(e) => {
+                                                        // Prevent infinite loop: only handle error once using dataset flag
+                                                        if (e.currentTarget.dataset.fallbackApplied) return
+                                                        e.currentTarget.dataset.fallbackApplied = '1'
+                                                        
+                                                        const PLACEHOLDER_PATH = '/img/placeholder-product.svg'
+                                                        if (e.currentTarget.src !== PLACEHOLDER_PATH && !e.currentTarget.src.includes('placeholder-product')) {
+                                                            e.currentTarget.src = PLACEHOLDER_PATH
+                                                        }
+                                                    }}
                                                 />
                                             )}
                                             <div className="flex-1">
@@ -251,7 +262,22 @@ export default function StoreOrders() {
                         </div>
 
                         {/* Actions */}
-                        <div className="flex justify-end">
+                        <div className="flex justify-end gap-3">
+                            {selectedOrder.status === 'ORDER_PLACED' && selectedOrder.isPaid && (
+                                <button 
+                                    onClick={async () => {
+                                        try {
+                                            await handleUpdateOrderStatus(selectedOrder.id, 'PROCESSING')
+                                            toast.success('Pedido aprobado y en proceso')
+                                        } catch (error) {
+                                            // Error already handled in handleUpdateOrderStatus
+                                        }
+                                    }}
+                                    className="px-8 py-3 bg-[#FFD95E] hover:bg-[#FFD044] text-[#1A1A1A] rounded-full font-semibold transition-all hover:scale-105 active:scale-95 shadow-lg"
+                                >
+                                    Aprobar Pedido
+                                </button>
+                            )}
                             <button onClick={closeModal} className="px-8 py-3 bg-[#00C6A2] hover:bg-[#00B894] text-white rounded-full font-semibold transition-all hover:scale-105 active:scale-95 shadow-lg" >
                                 Cerrar
                             </button>

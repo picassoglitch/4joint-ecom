@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { getHeroConfig, getSocialMediaLinks, getAllSiteConfig, updateSiteConfig } from '@/lib/supabase/siteConfig'
+import { getHeroConfig, getSocialMediaLinks, getAllSiteConfig, updateSiteConfig, getBannerConfig, getShippingBannerConfig } from '@/lib/supabase/siteConfig'
 import { getCurrentUser, isAdmin as checkIsAdmin } from '@/lib/supabase/auth'
 import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
@@ -19,6 +19,26 @@ export default function SiteConfigPage() {
     const [heroBannerImageFile, setHeroBannerImageFile] = useState(null)
     const [heroBannerImagePreview, setHeroBannerImagePreview] = useState('')
     const [showPrice, setShowPrice] = useState(false)
+    
+    // Banner config
+    const [bannerConfig, setBannerConfig] = useState({
+        enabled: true,
+        text: '¡Obtén 1 gr gratis en tu primer pedido!',
+        buttonText: 'Reclamar Oferta',
+        loginButtonText: 'Iniciar Sesión',
+        couponCode: '1GRGRATIS',
+        icon: '🎁',
+        showForAuthenticated: true,
+        showForUnauthenticated: true
+    })
+    
+    // Shipping banner config
+    const [shippingBannerConfig, setShippingBannerConfig] = useState({
+        enabled: true,
+        badgeText: 'NUEVO',
+        message: '¡Envío gratis en pedidos mayores a $800 MXN!',
+        showBadge: true
+    })
     
     // Social media
     const [socialMedia, setSocialMedia] = useState({
@@ -61,6 +81,28 @@ export default function SiteConfigPage() {
                 setShowPrice(config.hero.showPrice || false)
             }
             
+            // Load banner config
+            if (config.promotional_banner) {
+                setBannerConfig(config.promotional_banner)
+            } else {
+                // Load default banner config
+                const defaultBanner = await getBannerConfig()
+                if (defaultBanner) {
+                    setBannerConfig(defaultBanner)
+                }
+            }
+            
+            // Load shipping banner config
+            if (config.shipping_banner) {
+                setShippingBannerConfig(config.shipping_banner)
+            } else {
+                // Load default shipping banner config
+                const defaultShippingBanner = await getShippingBannerConfig()
+                if (defaultShippingBanner) {
+                    setShippingBannerConfig(defaultShippingBanner)
+                }
+            }
+            
             // Load social media
             if (config.social_media) {
                 setSocialMedia(config.social_media)
@@ -101,6 +143,12 @@ export default function SiteConfigPage() {
                 bannerImage: bannerImageUrl,
                 showPrice: showPrice
             })
+
+            // Save banner config
+            await updateSiteConfig('promotional_banner', bannerConfig)
+
+            // Save shipping banner config
+            await updateSiteConfig('shipping_banner', shippingBannerConfig)
 
             // Save social media
             await updateSiteConfig('social_media', socialMedia)
@@ -213,6 +261,188 @@ export default function SiteConfigPage() {
                                 Mostrar precio "Desde MXN $199"
                             </label>
                         </div>
+                    </div>
+                </div>
+
+                {/* Shipping Banner */}
+                <div className="bg-white rounded-2xl p-6 border border-[#00C6A2]/20 shadow-lg">
+                    <h2 className="text-xl font-semibold text-[#1A1A1A] mb-4">Banner de Envío Gratis</h2>
+                    
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="checkbox"
+                                id="shippingBannerEnabled"
+                                checked={shippingBannerConfig.enabled}
+                                onChange={(e) => setShippingBannerConfig({ ...shippingBannerConfig, enabled: e.target.checked })}
+                                className="w-4 h-4 text-[#00C6A2] border-[#00C6A2]/30 rounded focus:ring-[#00C6A2]"
+                            />
+                            <label htmlFor="shippingBannerEnabled" className="text-sm text-[#1A1A1A] font-medium">
+                                Habilitar banner de envío gratis
+                            </label>
+                        </div>
+
+                        {shippingBannerConfig.enabled && (
+                            <>
+                                <div>
+                                    <label className="block text-sm font-medium text-[#1A1A1A] mb-2">
+                                        Mensaje del Banner
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={shippingBannerConfig.message}
+                                        onChange={(e) => setShippingBannerConfig({ ...shippingBannerConfig, message: e.target.value })}
+                                        className="w-full px-4 py-2 border border-[#00C6A2]/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00C6A2]"
+                                        placeholder="¡Envío gratis en pedidos mayores a $800 MXN!"
+                                    />
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="checkbox"
+                                        id="showShippingBadge"
+                                        checked={shippingBannerConfig.showBadge}
+                                        onChange={(e) => setShippingBannerConfig({ ...shippingBannerConfig, showBadge: e.target.checked })}
+                                        className="w-4 h-4 text-[#00C6A2] border-[#00C6A2]/30 rounded focus:ring-[#00C6A2]"
+                                    />
+                                    <label htmlFor="showShippingBadge" className="text-sm text-[#1A1A1A]">
+                                        Mostrar badge "NUEVO"
+                                    </label>
+                                </div>
+
+                                {shippingBannerConfig.showBadge && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-[#1A1A1A] mb-2">
+                                            Texto del Badge
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={shippingBannerConfig.badgeText}
+                                            onChange={(e) => setShippingBannerConfig({ ...shippingBannerConfig, badgeText: e.target.value })}
+                                            className="w-full px-4 py-2 border border-[#00C6A2]/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00C6A2]"
+                                            placeholder="NUEVO"
+                                            maxLength={20}
+                                        />
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </div>
+                </div>
+
+                {/* Promotional Banner */}
+                <div className="bg-white rounded-2xl p-6 border border-[#00C6A2]/20 shadow-lg">
+                    <h2 className="text-xl font-semibold text-[#1A1A1A] mb-4">Banner Promocional</h2>
+                    
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="checkbox"
+                                id="bannerEnabled"
+                                checked={bannerConfig.enabled}
+                                onChange={(e) => setBannerConfig({ ...bannerConfig, enabled: e.target.checked })}
+                                className="w-4 h-4 text-[#00C6A2] border-[#00C6A2]/30 rounded focus:ring-[#00C6A2]"
+                            />
+                            <label htmlFor="bannerEnabled" className="text-sm text-[#1A1A1A] font-medium">
+                                Habilitar banner promocional
+                            </label>
+                        </div>
+
+                        {bannerConfig.enabled && (
+                            <>
+                                <div>
+                                    <label className="block text-sm font-medium text-[#1A1A1A] mb-2">
+                                        Texto del Banner
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={bannerConfig.text}
+                                        onChange={(e) => setBannerConfig({ ...bannerConfig, text: e.target.value })}
+                                        className="w-full px-4 py-2 border border-[#00C6A2]/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00C6A2]"
+                                        placeholder="¡Obtén 1 gr gratis en tu primer pedido!"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-[#1A1A1A] mb-2">
+                                        Icono (emoji)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={bannerConfig.icon}
+                                        onChange={(e) => setBannerConfig({ ...bannerConfig, icon: e.target.value })}
+                                        className="w-full px-4 py-2 border border-[#00C6A2]/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00C6A2]"
+                                        placeholder="🎁"
+                                        maxLength={2}
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-[#1A1A1A] mb-2">
+                                        Texto del Botón (Usuarios Autenticados)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={bannerConfig.buttonText}
+                                        onChange={(e) => setBannerConfig({ ...bannerConfig, buttonText: e.target.value })}
+                                        className="w-full px-4 py-2 border border-[#00C6A2]/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00C6A2]"
+                                        placeholder="Reclamar Oferta"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-[#1A1A1A] mb-2">
+                                        Texto del Botón (Usuarios No Autenticados)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={bannerConfig.loginButtonText}
+                                        onChange={(e) => setBannerConfig({ ...bannerConfig, loginButtonText: e.target.value })}
+                                        className="w-full px-4 py-2 border border-[#00C6A2]/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00C6A2]"
+                                        placeholder="Iniciar Sesión"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-[#1A1A1A] mb-2">
+                                        Código de Cupón
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={bannerConfig.couponCode}
+                                        onChange={(e) => setBannerConfig({ ...bannerConfig, couponCode: e.target.value })}
+                                        className="w-full px-4 py-2 border border-[#00C6A2]/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00C6A2]"
+                                        placeholder="1GRGRATIS"
+                                    />
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="checkbox"
+                                        id="showForAuthenticated"
+                                        checked={bannerConfig.showForAuthenticated}
+                                        onChange={(e) => setBannerConfig({ ...bannerConfig, showForAuthenticated: e.target.checked })}
+                                        className="w-4 h-4 text-[#00C6A2] border-[#00C6A2]/30 rounded focus:ring-[#00C6A2]"
+                                    />
+                                    <label htmlFor="showForAuthenticated" className="text-sm text-[#1A1A1A]">
+                                        Mostrar para usuarios autenticados
+                                    </label>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="checkbox"
+                                        id="showForUnauthenticated"
+                                        checked={bannerConfig.showForUnauthenticated}
+                                        onChange={(e) => setBannerConfig({ ...bannerConfig, showForUnauthenticated: e.target.checked })}
+                                        className="w-4 h-4 text-[#00C6A2] border-[#00C6A2]/30 rounded focus:ring-[#00C6A2]"
+                                    />
+                                    <label htmlFor="showForUnauthenticated" className="text-sm text-[#1A1A1A]">
+                                        Mostrar para usuarios no autenticados
+                                    </label>
+                                </div>
+                            </>
+                        )}
                     </div>
                 </div>
 

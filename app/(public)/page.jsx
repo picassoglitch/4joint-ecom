@@ -1,81 +1,112 @@
 'use client'
 import BestSelling from "@/components/BestSelling";
-import Hero from "@/components/Hero";
+import HeroCarousel from "@/components/HeroCarousel";
 import Newsletter from "@/components/Newsletter";
 import OurSpecs from "@/components/OurSpec";
 import LatestProducts from "@/components/LatestProducts";
-import Link from "next/link";
-import { ShoppingBag, Sparkles, TrendingUp, Zap } from "lucide-react";
+import FeedBlock from "@/components/FeedBlock";
+import PopularStores from "@/components/PopularStores";
+import { useSelector } from "react-redux";
+import { Zap, TrendingUp, Clock, Package, Flame } from "lucide-react";
 
 export default function Home() {
+    const products = useSelector(state => state.product.list);
+    const isLoading = useSelector(state => state.product.loading);
+    
+    // Create multiple feed blocks with different contexts (marketplace repetition pattern)
+    const affordableProducts = products.length > 0
+        ? products.slice().filter(p => p.price < 500).slice(0, 8)
+        : [];
+    
+    const popularProducts = products.length > 0
+        ? products.slice().sort((a, b) => (b.rating?.length || 0) - (a.rating?.length || 0)).slice(0, 8)
+        : [];
+    
+    const recentProducts = products.length > 0
+        ? products.slice().sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)).slice(0, 8)
+        : [];
+    
+    const edibleProducts = products.length > 0
+        ? products.slice().filter(p => p.category?.toLowerCase().includes('comestible') || p.category?.toLowerCase().includes('edible')).slice(0, 8)
+        : [];
+    
+    const allProductsShuffled1 = products.length > 0
+        ? [...products].sort(() => Math.random() - 0.5).slice(0, 8)
+        : [];
+    
+    const allProductsShuffled2 = products.length > 0
+        ? [...products].sort(() => Math.random() - 0.5).slice(0, 8)
+        : [];
+
     return (
-        <div className="bg-[#FAFAF8] min-h-screen">
-            {/* Hero Section - Editorial & Immersive */}
-            <div className="relative overflow-hidden">
-                <Hero />
-                
-                {/* Premium Action Cards - Refined & Calm */}
-                <div className="sticky top-20 z-40 mx-6 mb-12">
-                    <div className="max-w-7xl mx-auto">
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
-                            <Link 
-                                href="/shop" 
-                                className="group premium-card premium-glow bg-white/80 backdrop-blur-sm p-8 rounded-3xl border border-[#00C6A2]/10 hover:border-[#00C6A2]/20 transition-all duration-300"
-                            >
-                                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#00C6A2]/10 to-[#00C6A2]/5 flex items-center justify-center mb-4 group-hover:scale-105 transition-transform duration-300">
-                                    <ShoppingBag size={28} className="text-[#00C6A2]" />
-                                </div>
-                                <h3 className="font-semibold text-lg mb-2 text-[#1A1A1A] leading-tight">Explorar</h3>
-                                <p className="text-sm text-[#1A1A1A]/60 leading-relaxed">Ver todos los productos</p>
-                            </Link>
-                            
-                            <Link 
-                                href="/tiendas-cerca" 
-                                className="group premium-card premium-glow bg-white/80 backdrop-blur-sm p-8 rounded-3xl border border-[#FFD95E]/10 hover:border-[#FFD95E]/20 transition-all duration-300"
-                            >
-                                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#FFD95E]/10 to-[#FFD95E]/5 flex items-center justify-center mb-4 group-hover:scale-105 transition-transform duration-300">
-                                    <Sparkles size={28} className="text-[#FFD95E]" />
-                                </div>
-                                <h3 className="font-semibold text-lg mb-2 text-[#1A1A1A] leading-tight">Tiendas</h3>
-                                <p className="text-sm text-[#1A1A1A]/60 leading-relaxed">Cerca de ti</p>
-                            </Link>
-                            
-                            <Link 
-                                href="/shop?category=Extractos" 
-                                className="group premium-card premium-glow bg-white/80 backdrop-blur-sm p-8 rounded-3xl border border-purple-200/30 hover:border-purple-300/40 transition-all duration-300"
-                            >
-                                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-100/50 to-purple-50/30 flex items-center justify-center mb-4 group-hover:scale-105 transition-transform duration-300">
-                                    <Zap size={28} className="text-purple-500/80" />
-                                </div>
-                                <h3 className="font-semibold text-lg mb-2 text-[#1A1A1A] leading-tight">Extractos</h3>
-                                <p className="text-sm text-[#1A1A1A]/60 leading-relaxed">Premium</p>
-                            </Link>
-                            
-                            <Link 
-                                href="/shop?category=Flores" 
-                                className="group premium-card premium-glow bg-white/80 backdrop-blur-sm p-8 rounded-3xl border border-green-200/30 hover:border-green-300/40 transition-all duration-300"
-                            >
-                                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-green-100/50 to-green-50/30 flex items-center justify-center mb-4 group-hover:scale-105 transition-transform duration-300">
-                                    <TrendingUp size={28} className="text-green-500/80" />
-                                </div>
-                                <h3 className="font-semibold text-lg mb-2 text-[#1A1A1A] leading-tight">Flores</h3>
-                                <p className="text-sm text-[#1A1A1A]/60 leading-relaxed">Más vendidas</p>
-                            </Link>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Products Sections - More Breathing Room */}
-            <div className="space-y-24 pb-24">
-                <LatestProducts />
-                <BestSelling />
-            </div>
-
-            {/* Specs and Newsletter - Soft Transitions */}
-            <div className="bg-gradient-to-b from-[#FAFAF8] to-white/50 py-20">
-                <OurSpecs />
-            </div>
+        <div className="space-y-0">
+            <HeroCarousel />
+            
+            {/* Popular Stores - Horizontal scroll */}
+            <PopularStores />
+            
+            {/* Immediate density after hero - Popular today */}
+            <FeedBlock
+                title="Populares hoy"
+                subtitle="Los productos más buscados"
+                products={popularProducts.map((p, i) => ({ ...p, _activitySignal: i < 2 ? 'Popular hoy' : null }))}
+                showLabel={true}
+                labelType={{ text: 'Popular', icon: TrendingUp, color: 'bg-[#00C6A2]' }}
+                isLoading={isLoading}
+            />
+            
+            <LatestProducts />
+            <BestSelling />
+            
+            {/* Menos de $500 */}
+            <FeedBlock
+                title="Menos de $500"
+                subtitle="Ofertas accesibles para todos"
+                products={affordableProducts}
+                showLabel={true}
+                labelType={{ text: 'Oferta', icon: Zap, color: 'bg-[#FFD95E]' }}
+                isLoading={isLoading}
+            />
+            
+            {/* Comestibles */}
+            <FeedBlock
+                title="Comestibles"
+                subtitle="Productos comestibles destacados"
+                products={edibleProducts}
+                showLabel={true}
+                labelType={{ text: 'Nuevo', icon: Package, color: 'bg-blue-500' }}
+                isLoading={isLoading}
+            />
+            
+            {/* Recomendados */}
+            <FeedBlock
+                title="Recomendados"
+                subtitle="Selección especial para ti"
+                products={allProductsShuffled1}
+                isLoading={isLoading}
+            />
+            
+            <OurSpecs />
+            
+            {/* Entrega rápida - Reuse products with different context */}
+            <FeedBlock
+                title="Entrega rápida"
+                subtitle="Productos disponibles ahora"
+                products={recentProducts.slice(0, 6)}
+                showLabel={true}
+                labelType={{ text: 'Disponible', icon: Clock, color: 'bg-green-500' }}
+                isLoading={isLoading}
+                skeletonCount={6}
+            />
+            
+            {/* Seguir explorando */}
+            <FeedBlock
+                title="Seguir explorando"
+                subtitle="Más productos que podrían interesarte"
+                products={allProductsShuffled2}
+                isLoading={isLoading}
+            />
+            
             <Newsletter />
         </div>
     );

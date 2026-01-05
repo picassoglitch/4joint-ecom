@@ -3,7 +3,8 @@ import StoreInfo from "@/components/admin/StoreInfo"
 import Loading from "@/components/Loading"
 import { useEffect, useState } from "react"
 import toast from "react-hot-toast"
-import { getVendors, approveVendor, rejectVendor } from "@/lib/supabase/database"
+import { getVendors } from "@/lib/supabase/database"
+import { supabase } from "@/lib/supabase/client"
 
 export default function AdminApprove() {
     const [stores, setStores] = useState([])
@@ -34,18 +35,54 @@ export default function AdminApprove() {
 
     const handleApprove = async ({ storeId, status }) => {
         try {
+            // Get access token from session
+            const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+            
+            if (sessionError || !session?.access_token) {
+                throw new Error('No se pudo obtener la sesión. Por favor inicia sesión nuevamente.')
+            }
+
             if (status === 'approved') {
-                await approveVendor(storeId)
+                // Use API route for approval
+                const response = await fetch(`/api/admin/vendors/${storeId}`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${session.access_token}`
+                    },
+                    body: JSON.stringify({ approved: true })
+                })
+
+                const result = await response.json()
+
+                if (!response.ok) {
+                    throw new Error(result.error || 'Error al aprobar la tienda')
+                }
+
                 toast.success('Tienda aprobada exitosamente')
             } else {
-                await rejectVendor(storeId)
+                // Use API route for rejection (delete)
+                const response = await fetch(`/api/admin/vendors/${storeId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${session.access_token}`
+                    }
+                })
+
+                const result = await response.json()
+
+                if (!response.ok) {
+                    throw new Error(result.error || 'Error al rechazar la tienda')
+                }
+
                 toast.success('Tienda rechazada')
             }
             // Refresh the list
             await fetchStores()
         } catch (error) {
             console.error('Error updating vendor:', error)
-            toast.error(error.message || 'Error al procesar la solicitud')
+            const errorMessage = error instanceof Error ? error.message : (error?.message || 'Error al procesar la solicitud')
+            toast.error(errorMessage)
             throw error
         }
     }

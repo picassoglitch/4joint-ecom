@@ -5,10 +5,12 @@ import { useEffect, useState } from "react"
 import toast from "react-hot-toast"
 import { getVendors } from "@/lib/supabase/database"
 import { getCurrentUser } from "@/lib/supabase/auth"
+import { Trash2 } from "lucide-react"
 
 export default function AdminStores() {
     const [stores, setStores] = useState([])
     const [loading, setLoading] = useState(true)
+    const [deleting, setDeleting] = useState({})
 
     const fetchStores = async () => {
         try {
@@ -32,6 +34,60 @@ export default function AdminStores() {
             toast.error('Error al cargar las tiendas')
         } finally {
             setLoading(false)
+        }
+    }
+
+    const handleDeleteStore = async (storeId, storeName) => {
+        // Confirm deletion
+        const confirmed = window.confirm(
+            `¿Estás seguro de que deseas eliminar la tienda "${storeName}"?\n\n` +
+            `Esta acción eliminará:\n` +
+            `- La tienda y su cuenta de vendedor\n` +
+            `- Todos los productos de la tienda\n` +
+            `- Todos los pedidos relacionados\n` +
+            `- Todo el contenido relacionado\n\n` +
+            `Esta acción NO se puede deshacer.`
+        )
+
+        if (!confirmed) return
+
+        setDeleting({ ...deleting, [storeId]: true })
+        try {
+            const { user } = await getCurrentUser()
+            if (!user) {
+                toast.error('Debes estar autenticado')
+                return
+            }
+
+            const { supabase } = await import('@/lib/supabase/client')
+            const { data: { session } } = await supabase.auth.getSession()
+            
+            if (!session) {
+                toast.error('Sesión no encontrada')
+                return
+            }
+
+            const response = await fetch(`/api/admin/vendors/${storeId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`,
+                },
+            })
+
+            const data = await response.json()
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Error al eliminar la tienda')
+            }
+
+            toast.success('Tienda eliminada exitosamente')
+            await fetchStores()
+        } catch (error) {
+            console.error('Error deleting store:', error)
+            toast.error(error.message || 'Error al eliminar la tienda')
+        } finally {
+            setDeleting({ ...deleting, [storeId]: false })
         }
     }
 
@@ -99,12 +155,22 @@ export default function AdminStores() {
 
                             {/* Actions */}
                             <div className="flex items-center gap-3 pt-2 flex-wrap">
-                                <p>Activa</p>
-                                <label className="relative inline-flex items-center cursor-pointer text-gray-900">
-                                    <input type="checkbox" className="sr-only peer" onChange={() => toast.promise(toggleIsActive(store.id), { loading: "Actualizando datos..." })} checked={store.isActive} />
-                                    <div className="w-9 h-5 bg-slate-300 rounded-full peer peer-checked:bg-green-600 transition-colors duration-200"></div>
-                                    <span className="dot absolute left-1 top-1 w-3 h-3 bg-white rounded-full transition-transform duration-200 ease-in-out peer-checked:translate-x-4"></span>
-                                </label>
+                                <div className="flex items-center gap-2">
+                                    <p>Activa</p>
+                                    <label className="relative inline-flex items-center cursor-pointer text-gray-900">
+                                        <input type="checkbox" className="sr-only peer" onChange={() => toast.promise(toggleIsActive(store.id), { loading: "Actualizando datos..." })} checked={store.isActive} />
+                                        <div className="w-9 h-5 bg-slate-300 rounded-full peer peer-checked:bg-green-600 transition-colors duration-200"></div>
+                                        <span className="dot absolute left-1 top-1 w-3 h-3 bg-white rounded-full transition-transform duration-200 ease-in-out peer-checked:translate-x-4"></span>
+                                    </label>
+                                </div>
+                                <button
+                                    onClick={() => handleDeleteStore(store.id, store.name)}
+                                    disabled={deleting[store.id]}
+                                    className="px-4 py-2 bg-red-500 hover:bg-red-600 disabled:bg-red-300 text-white rounded-lg font-semibold transition-all hover:scale-105 active:scale-95 disabled:cursor-not-allowed flex items-center gap-2"
+                                >
+                                    <Trash2 size={16} />
+                                    {deleting[store.id] ? 'Eliminando...' : 'Eliminar'}
+                                </button>
                             </div>
                         </div>
                     ))}

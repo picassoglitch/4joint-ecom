@@ -1,7 +1,7 @@
 'use client'
 import { useEffect } from 'react'
 import { useDispatch } from 'react-redux'
-import { setProduct } from '@/lib/features/product/productSlice'
+import { setProduct, setLoading } from '@/lib/features/product/productSlice'
 import { getProducts } from '@/lib/supabase/database'
 
 /**
@@ -14,6 +14,7 @@ export default function ProductLoader() {
     useEffect(() => {
         const loadProducts = async () => {
             try {
+                dispatch(setLoading(true)) // Set loading state
                 console.log('🔄 Loading products from Supabase...')
                 
                 // Get all products from approved vendors that are in stock
@@ -30,6 +31,7 @@ export default function ProductLoader() {
                     console.warn('  1. Vendor is approved (vendors.approved = true)')
                     console.warn('  2. Product is in stock (products.in_stock = true)')
                     dispatch(setProduct([]))
+                    dispatch(setLoading(false))
                     return
                 }
                 
@@ -78,6 +80,7 @@ export default function ProductLoader() {
                 
                 // Set empty array on error to prevent app crash
                 dispatch(setProduct([]))
+                dispatch(setLoading(false))
             }
         }
 

@@ -7,8 +7,10 @@ import { getCurrentVendor, updateVendor } from "@/lib/supabase/database"
 import { uploadImage } from "@/lib/supabase/storage"
 import { assets } from "@/assets/assets"
 import MeetupPointsManager from "@/components/store/MeetupPointsManager"
-import LocationPicker from "@/components/store/LocationPicker"
-import CDMXColoniasSelector from "@/components/store/CDMXColoniasSelector"
+import LocationSearch from "@/components/store/LocationSearch"
+import ServiceAreaSelector from "@/components/store/ServiceAreaSelector"
+import { getUserAddresses } from "@/lib/supabase/addresses"
+import { getCurrentUser } from "@/lib/supabase/auth"
 
 export default function EditStore() {
     const [loading, setLoading] = useState(true)
@@ -20,14 +22,11 @@ export default function EditStore() {
         email: "",
         contact: "",
         address: "",
+        locationAddress: "", // Human-readable address from user's address
         latitude: null,
         longitude: null,
-        serviceRadiusKm: 10.0,
-        serviceColonias: [],
-        showStoreLocation: true,
-        showWhatsappContact: false,
-        whatsappNumber: '',
-        fulfillmentModes: { pickup: false, delivery: false, meetupPoint: false },
+        serviceColonias: [], // Array of colonia IDs for service area
+        fulfillmentModes: { pickup: false, delivery: false, meetupPoint: false, courierExterno: false },
         meetupPoints: [],
         deliveryNotes: "",
         minOrder: 0,
@@ -37,6 +36,7 @@ export default function EditStore() {
         operatingHours: {},
         courierCost: 0,
         courierCostIncluded: false,
+        requireOrderApproval: false, // Require vendor to approve orders before processing
     })
     const [logoFile, setLogoFile] = useState(null)
     const [logoPreview, setLogoPreview] = useState("")
@@ -46,6 +46,29 @@ export default function EditStore() {
         try {
             const vendor = await getCurrentVendor()
             if (vendor) {
+                // Get user's address to use as store location
+                const { user } = await getCurrentUser()
+                let userAddress = ""
+                let userLat = null
+                let userLng = null
+                
+                if (user) {
+                    try {
+                        const addresses = await getUserAddresses(user.id)
+                        const defaultAddress = addresses.find(addr => addr.is_default) || addresses[0]
+                        if (defaultAddress) {
+                            userAddress = `${defaultAddress.street}, ${defaultAddress.colonia || ''}, ${defaultAddress.city}, ${defaultAddress.state} ${defaultAddress.zip}`
+                            // If vendor doesn't have location, use user's address location
+                            if (!vendor.latitude || !vendor.longitude) {
+                                // We'll need to geocode the address or use stored location
+                                // For now, we'll use the address string
+                            }
+                        }
+                    } catch (error) {
+                        console.warn('Could not fetch user addresses:', error)
+                    }
+                }
+                
                 setStoreInfo({
                     name: vendor.name || "",
                     description: vendor.description || "",
@@ -53,14 +76,11 @@ export default function EditStore() {
                     email: vendor.email || "",
                     contact: vendor.contact || "",
                     address: vendor.address || "",
-                    latitude: vendor.latitude || null,
-                    longitude: vendor.longitude || null,
-                    serviceRadiusKm: vendor.service_radius_km || 10.0,
+                    locationAddress: userAddress || vendor.address || "",
+                    latitude: vendor.latitude || userLat || null,
+                    longitude: vendor.longitude || userLng || null,
                     serviceColonias: vendor.service_colonias || [],
-                    showStoreLocation: vendor.show_store_location !== false,
-                    showWhatsappContact: vendor.show_whatsapp_contact || false,
-                    whatsappNumber: vendor.whatsapp_number || '',
-                    fulfillmentModes: vendor.fulfillment_modes || { pickup: false, delivery: false, meetupPoint: false },
+                    fulfillmentModes: vendor.fulfillment_modes || { pickup: false, delivery: false, meetupPoint: false, courierExterno: false },
                     meetupPoints: vendor.meetup_points || [],
                     deliveryNotes: vendor.delivery_notes || "",
                     minOrder: vendor.min_order || 0,
@@ -70,6 +90,7 @@ export default function EditStore() {
                     operatingHours: vendor.operating_hours || {},
                     courierCost: vendor.courier_cost || 0,
                     courierCostIncluded: vendor.courier_cost_included || false,
+                    requireOrderApproval: vendor.require_order_approval || false,
                 })
                 setLogoPreview(vendor.logo || "")
             } else {
@@ -127,11 +148,7 @@ export default function EditStore() {
                 address: storeInfo.address,
                 latitude: storeInfo.latitude,
                 longitude: storeInfo.longitude,
-                service_radius_km: storeInfo.serviceRadiusKm,
                 service_colonias: storeInfo.serviceColonias,
-                show_store_location: storeInfo.showStoreLocation,
-                show_whatsapp_contact: storeInfo.showWhatsappContact,
-                whatsapp_number: storeInfo.whatsappNumber || null,
                 fulfillment_modes: storeInfo.fulfillmentModes,
                 meetup_points: storeInfo.meetupPoints,
                 delivery_notes: storeInfo.deliveryNotes,
@@ -142,6 +159,14 @@ export default function EditStore() {
                 operating_hours: storeInfo.operatingHours,
                 courier_cost: storeInfo.courierCost,
                 courier_cost_included: storeInfo.courierCostIncluded,
+                require_order_approval: storeInfo.requireOrderApproval,
+            }
+
+            console.log('💾 Saving store data:')
+            console.log(`  - service_colonias: ${JSON.stringify(storeInfo.serviceColonias)}`)
+            console.log(`  - service_colonias length: ${storeInfo.serviceColonias?.length || 0}`)
+            if (storeInfo.serviceColonias && storeInfo.serviceColonias.length > 0) {
+                console.log(`  - First 3 colonias: ${JSON.stringify(storeInfo.serviceColonias.slice(0, 3))}`)
             }
 
             await updateVendor(updateData)
@@ -151,30 +176,7 @@ export default function EditStore() {
             await fetchStoreInfo()
         } catch (error) {
             console.error('Error updating store:', error)
-            
-            // Better error handling
-            let errorMessage = 'Error al actualizar la información de la tienda'
-            
-            if (error?.message) {
-                errorMessage = error.message
-            } else if (typeof error === 'string') {
-                errorMessage = error
-            } else if (error?.error_description) {
-                errorMessage = error.error_description
-            } else if (error?.details) {
-                errorMessage = error.details
-            } else if (error?.hint) {
-                errorMessage = `Error: ${error.hint}`
-            } else if (error?.code) {
-                errorMessage = `Error ${error.code}: ${error.message || 'Error desconocido'}`
-            }
-            
-            // Check if it's a missing column error
-            if (errorMessage.includes('service_colonias') || errorMessage.includes('column')) {
-                errorMessage = 'Algunas columnas no existen en la base de datos. Por favor ejecuta la migración: supabase/migration_colonias_and_courier.sql'
-            }
-            
-            toast.error(errorMessage)
+            toast.error(error.message || 'Error al actualizar la información de la tienda')
         } finally {
             setSaving(false)
         }
@@ -245,7 +247,7 @@ export default function EditStore() {
                     <input
                         type="text"
                         name="name"
-                        value={storeInfo.name || ''}
+                        value={storeInfo.name}
                         onChange={handleChange}
                         required
                         className="w-full px-4 py-3 rounded-xl border border-[#00C6A2]/20 focus:border-[#00C6A2] focus:ring-2 focus:ring-[#00C6A2]/20 outline-none transition-all"
@@ -260,7 +262,7 @@ export default function EditStore() {
                     </label>
                     <textarea
                         name="description"
-                        value={storeInfo.description || ''}
+                        value={storeInfo.description}
                         onChange={handleChange}
                         required
                         rows={5}
@@ -277,7 +279,7 @@ export default function EditStore() {
                     <input
                         type="email"
                         name="email"
-                        value={storeInfo.email || ''}
+                        value={storeInfo.email}
                         onChange={handleChange}
                         required
                         className="w-full px-4 py-3 rounded-xl border border-[#00C6A2]/20 focus:border-[#00C6A2] focus:ring-2 focus:ring-[#00C6A2]/20 outline-none transition-all"
@@ -293,7 +295,7 @@ export default function EditStore() {
                     <input
                         type="text"
                         name="contact"
-                        value={storeInfo.contact || ''}
+                        value={storeInfo.contact}
                         onChange={handleChange}
                         className="w-full px-4 py-3 rounded-xl border border-[#00C6A2]/20 focus:border-[#00C6A2] focus:ring-2 focus:ring-[#00C6A2]/20 outline-none transition-all"
                         placeholder="+52 55 1234 5678"
@@ -305,66 +307,45 @@ export default function EditStore() {
                     <label className="block text-sm font-medium text-[#1A1A1A] mb-2">
                         Dirección <span className="text-[#1A1A1A]/40 text-sm font-normal">(Opcional)</span>
                     </label>
-                    <textarea
-                        name="address"
-                        value={storeInfo.address || ''}
-                        onChange={handleChange}
-                        rows={3}
-                        className="w-full px-4 py-3 rounded-xl border border-[#00C6A2]/20 focus:border-[#00C6A2] focus:ring-2 focus:ring-[#00C6A2]/20 outline-none transition-all resize-none"
-                        placeholder="Dirección completa de tu tienda"
+                    <LocationSearch
+                        value={storeInfo.address}
+                        onChange={(address) => setStoreInfo({ ...storeInfo, address })}
+                        onLocationSelect={(location) => {
+                            setStoreInfo({
+                                ...storeInfo,
+                                address: location.address,
+                                latitude: location.latitude,
+                                longitude: location.longitude
+                            })
+                        }}
+                        placeholder="Busca tu dirección (calle, colonia, ciudad)..."
                     />
+                    {storeInfo.address && (
+                        <p className="text-xs text-[#00C6A2] mt-2">
+                            ✓ {storeInfo.address}
+                        </p>
+                    )}
                 </div>
 
-                {/* Location Section - Donde recogerán las órdenes de Didi */}
+                {/* Location Section */}
                 <div className="border-t border-slate-200 pt-6">
-                    <h2 className="text-xl font-semibold text-[#1A1A1A] mb-2">Donde recogerán las órdenes de Didi</h2>
-                    <p className="text-sm text-[#1A1A1A]/60 mb-6">
-                        Configura el punto de recolección donde los repartidores de Didi/Uber recogerán los pedidos
-                    </p>
+                    <h2 className="text-xl font-semibold text-[#1A1A1A] mb-4">Ubicación y Zona de Servicio</h2>
                     
-                    {/* Show Store Location Toggle */}
-                    <div className="mb-6">
-                        <label className="flex items-center gap-3 cursor-pointer">
-                            <input
-                                type="checkbox"
-                                checked={storeInfo.showStoreLocation}
-                                onChange={(e) => setStoreInfo({ ...storeInfo, showStoreLocation: e.target.checked })}
-                                className="w-5 h-5 rounded border-[#00C6A2] text-[#00C6A2] focus:ring-[#00C6A2]"
-                            />
-                            <span className="text-[#1A1A1A] font-medium">
-                                Mostrar ubicación de la tienda en el mapa
-                            </span>
-                        </label>
-                        <p className="text-xs text-[#1A1A1A]/60 mt-1 ml-8">
-                            Si está desactivado, solo se mostrará el punto de entrega seleccionado
+                    <div className="mb-4">
+                        <p className="text-sm text-[#1A1A1A]/70 mb-4">
+                            Se usará la misma ubicación que configuraste en tu dirección de perfil.
                         </p>
                     </div>
-
-                    {/* Map Location Picker */}
-                    <div className="mb-6">
-                        <label className="block text-sm font-medium text-[#1A1A1A] mb-3">
-                            Selecciona el punto de recolección en el mapa
+                    
+                    <div>
+                        <label className="block text-sm font-medium text-[#1A1A1A] mb-2">
+                            Zona de Servicio (Colonias donde entregas)
                         </label>
-                        <LocationPicker
-                            latitude={storeInfo.latitude}
-                            longitude={storeInfo.longitude}
-                            onLocationChange={({ lat, lng }) => {
-                                setStoreInfo({ ...storeInfo, latitude: lat, longitude: lng })
-                            }}
-                            showStoreLocation={storeInfo.showStoreLocation}
-                        />
-                    </div>
-
-                    {/* CDMX Colonias Selector */}
-                    <div className="mb-6">
-                        <label className="block text-sm font-medium text-[#1A1A1A] mb-3">
-                            Colonias donde trabajas (CDMX)
-                        </label>
-                        <p className="text-xs text-[#1A1A1A]/60 mb-4">
-                            Selecciona las colonias donde ofreces servicio de entrega. Por ahora solo están disponibles las delegaciones de CDMX.
+                        <p className="text-xs text-[#1A1A1A]/60 mb-3">
+                            Selecciona las delegaciones y colonias donde realizas entregas. Los clientes solo podrán comprar si su código postal está en tu zona de servicio.
                         </p>
-                        <CDMXColoniasSelector
-                            selectedColonias={storeInfo.serviceColonias || []}
+                        <ServiceAreaSelector
+                            selectedColonias={storeInfo.serviceColonias}
                             onChange={(colonias) => setStoreInfo({ ...storeInfo, serviceColonias: colonias })}
                         />
                     </div>
@@ -372,7 +353,7 @@ export default function EditStore() {
 
                 {/* Fulfillment Modes */}
                 <div className="border-t border-slate-200 pt-6">
-                    <h2 className="text-xl font-semibold text-[#1A1A1A] mb-4">Modos de Entrega</h2>
+                    <h2 className="text-xl font-semibold text-[#1A1A1A] mb-4">Métodos de Entrega</h2>
                     
                     <div className="space-y-3">
                         <label className="flex items-center gap-3 cursor-pointer">
@@ -413,6 +394,45 @@ export default function EditStore() {
                             />
                             <span className="text-[#1A1A1A]">Punto de entrega</span>
                         </label>
+                        
+                        <label className="flex items-center gap-3 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={storeInfo.fulfillmentModes.courierExterno}
+                                onChange={(e) => setStoreInfo({
+                                    ...storeInfo,
+                                    fulfillmentModes: { ...storeInfo.fulfillmentModes, courierExterno: e.target.checked }
+                                })}
+                                className="w-5 h-5 rounded border-[#00C6A2] text-[#00C6A2] focus:ring-[#00C6A2]"
+                            />
+                            <span className="text-[#1A1A1A]">Courier Externo (Uber/Didi)</span>
+                        </label>
+                    </div>
+                </div>
+
+                {/* Order Approval Settings */}
+                <div className="border-t border-slate-200 pt-6">
+                    <h2 className="text-xl font-semibold text-[#1A1A1A] mb-4">Configuración de Pedidos</h2>
+                    
+                    <div className="space-y-3">
+                        <label className="flex items-start gap-3 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={storeInfo.requireOrderApproval}
+                                onChange={(e) => setStoreInfo({
+                                    ...storeInfo,
+                                    requireOrderApproval: e.target.checked
+                                })}
+                                className="w-5 h-5 rounded border-[#00C6A2] text-[#00C6A2] focus:ring-[#00C6A2] mt-0.5"
+                            />
+                            <div>
+                                <span className="text-[#1A1A1A] font-medium block">Requerir aceptación de pedidos</span>
+                                <span className="text-sm text-[#1A1A1A]/60 block mt-1">
+                                    Si está activado, deberás aceptar manualmente cada pedido antes de que se procese. 
+                                    Los pedidos permanecerán en estado "Pendiente" hasta que los apruebes.
+                                </span>
+                            </div>
+                        </label>
                     </div>
                 </div>
 
@@ -428,7 +448,7 @@ export default function EditStore() {
                 )}
 
                 {/* Delivery Settings */}
-                {storeInfo.fulfillmentModes.delivery && (
+                {(storeInfo.fulfillmentModes.delivery || storeInfo.fulfillmentModes.courierExterno) && (
                     <div className="border-t border-slate-200 pt-6">
                         <h2 className="text-xl font-semibold text-[#1A1A1A] mb-4">Configuración de Envío</h2>
                         
@@ -441,7 +461,7 @@ export default function EditStore() {
                                     type="number"
                                     step="0.01"
                                     min="0"
-                                    value={storeInfo.minOrder ?? 0}
+                                    value={storeInfo.minOrder}
                                     onChange={(e) => setStoreInfo({ ...storeInfo, minOrder: parseFloat(e.target.value) || 0 })}
                                     className="w-full px-4 py-3 rounded-xl border border-[#00C6A2]/20 focus:border-[#00C6A2] focus:ring-2 focus:ring-[#00C6A2]/20 outline-none transition-all"
                                 />
@@ -452,7 +472,7 @@ export default function EditStore() {
                                     Política de Costo de Envío
                                 </label>
                                 <select
-                                    value={storeInfo.deliveryFeePolicy || 'flat'}
+                                    value={storeInfo.deliveryFeePolicy}
                                     onChange={(e) => setStoreInfo({ ...storeInfo, deliveryFeePolicy: e.target.value })}
                                     className="w-full px-4 py-3 rounded-xl border border-[#00C6A2]/20 focus:border-[#00C6A2] focus:ring-2 focus:ring-[#00C6A2]/20 outline-none transition-all"
                                 >
@@ -471,7 +491,7 @@ export default function EditStore() {
                                         type="number"
                                         step="0.01"
                                         min="0"
-                                        value={storeInfo.deliveryFeeAmount ?? 0}
+                                        value={storeInfo.deliveryFeeAmount}
                                         onChange={(e) => setStoreInfo({ ...storeInfo, deliveryFeeAmount: parseFloat(e.target.value) || 0 })}
                                         className="w-full px-4 py-3 rounded-xl border border-[#00C6A2]/20 focus:border-[#00C6A2] focus:ring-2 focus:ring-[#00C6A2]/20 outline-none transition-all"
                                     />
@@ -488,7 +508,7 @@ export default function EditStore() {
                                         step="0.1"
                                         min="0"
                                         max="100"
-                                        value={storeInfo.deliveryFeePercent ?? 0}
+                                        value={storeInfo.deliveryFeePercent}
                                         onChange={(e) => setStoreInfo({ ...storeInfo, deliveryFeePercent: parseFloat(e.target.value) || 0 })}
                                         className="w-full px-4 py-3 rounded-xl border border-[#00C6A2]/20 focus:border-[#00C6A2] focus:ring-2 focus:ring-[#00C6A2]/20 outline-none transition-all"
                                     />
@@ -500,7 +520,7 @@ export default function EditStore() {
                                     Notas de Entrega
                                 </label>
                                 <textarea
-                                    value={storeInfo.deliveryNotes || ''}
+                                    value={storeInfo.deliveryNotes}
                                     onChange={(e) => setStoreInfo({ ...storeInfo, deliveryNotes: e.target.value })}
                                     rows={3}
                                     className="w-full px-4 py-3 rounded-xl border border-[#00C6A2]/20 focus:border-[#00C6A2] focus:ring-2 focus:ring-[#00C6A2]/20 outline-none transition-all resize-none"
@@ -511,53 +531,39 @@ export default function EditStore() {
                     </div>
                 )}
 
-                {/* Contact Settings */}
-                <div className="border-t border-slate-200 pt-6">
-                    <h2 className="text-xl font-semibold text-[#1A1A1A] mb-4">Configuración de Contacto</h2>
-                    
-                    <div className="space-y-4">
-                        <label className="flex items-start gap-3 cursor-pointer p-4 bg-slate-50 rounded-xl border-2 border-slate-200 hover:border-[#00C6A2] transition-all">
-                            <input
-                                type="checkbox"
-                                checked={storeInfo.showWhatsappContact || false}
-                                onChange={(e) => setStoreInfo({ ...storeInfo, showWhatsappContact: e.target.checked })}
-                                className="w-5 h-5 rounded border-[#00C6A2] text-[#00C6A2] focus:ring-[#00C6A2] mt-0.5"
-                            />
-                            <div className="flex-1">
-                                <span className="text-[#1A1A1A] font-bold text-base block mb-1">
-                                    Mostrar botón de WhatsApp en checkout
-                                </span>
-                                <p className="text-sm text-[#1A1A1A]/70">
-                                    Cuando los clientes seleccionen "Envío a domicilio", verán un botón para contactarte directamente por WhatsApp y coordinar el envío con Didi/Uber.
-                                </p>
-                            </div>
-                        </label>
-
-                        {storeInfo.showWhatsappContact && (
-                            <div className="ml-8 p-4 bg-green-50 border-2 border-green-200 rounded-xl">
+                {/* Courier Settings - Now part of Delivery Settings */}
+                {storeInfo.fulfillmentModes.courierExterno && (
+                    <div className="border-t border-slate-200 pt-6">
+                        <h2 className="text-xl font-semibold text-[#1A1A1A] mb-4">Configuración de Courier Externo</h2>
+                        
+                        <div className="space-y-4">
+                            <div>
                                 <label className="block text-sm font-medium text-[#1A1A1A] mb-2">
-                                    Número de WhatsApp <span className="text-red-500">*</span>
+                                    Costo de Courier (MXN)
                                 </label>
                                 <input
-                                    type="text"
-                                    value={storeInfo.whatsappNumber || ''}
-                                    onChange={(e) => setStoreInfo({ ...storeInfo, whatsappNumber: e.target.value })}
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={storeInfo.courierCost}
+                                    onChange={(e) => setStoreInfo({ ...storeInfo, courierCost: parseFloat(e.target.value) || 0 })}
                                     className="w-full px-4 py-3 rounded-xl border border-[#00C6A2]/20 focus:border-[#00C6A2] focus:ring-2 focus:ring-[#00C6A2]/20 outline-none transition-all"
-                                    placeholder="+52 55 1234 5678"
-                                    required={storeInfo.showWhatsappContact}
                                 />
-                                <p className="text-xs text-[#1A1A1A]/60 mt-2">
-                                    Este número se mostrará en el botón de WhatsApp. Puede ser diferente al número de contacto general.
-                                </p>
-                                {storeInfo.showWhatsappContact && !storeInfo.whatsappNumber && (
-                                    <p className="text-xs text-red-600 font-medium mt-2">
-                                        ⚠️ Debes ingresar un número de WhatsApp para activar esta función
-                                    </p>
-                                )}
+                                <p className="text-xs text-[#1A1A1A]/60 mt-1">Costo estimado para courier externo (Uber/Didi)</p>
                             </div>
-                        )}
+                            
+                            <label className="flex items-center gap-3 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={storeInfo.courierCostIncluded}
+                                    onChange={(e) => setStoreInfo({ ...storeInfo, courierCostIncluded: e.target.checked })}
+                                    className="w-5 h-5 rounded border-[#00C6A2] text-[#00C6A2] focus:ring-[#00C6A2]"
+                                />
+                                <span className="text-[#1A1A1A]">El costo de courier está incluido en el precio de los productos</span>
+                            </label>
+                        </div>
                     </div>
-                </div>
+                )}
 
                 {/* Submit Button */}
                 <div className="flex gap-4 pt-4">

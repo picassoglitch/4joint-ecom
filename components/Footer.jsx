@@ -76,9 +76,9 @@ const Footer = () => {
     ].filter(item => item.link !== '#') // Only show social icons with links
 
     return (
-        <footer className="mx-6 bg-gradient-to-b from-[#FAFAF6] to-white border-t border-[#00C6A2]/10">
+        <footer className="mx-6 bg-gradient-to-b from-transparent via-[#FAFAF6]/50 to-[#FAFAF6] border-t border-[#00C6A2]/5 pt-16 pb-8">
             <div className="max-w-7xl mx-auto">
-                <div className="flex flex-col md:flex-row items-start justify-between gap-10 py-12 border-b border-[#00C6A2]/20 text-[#1A1A1A]/70">
+                <div className="flex flex-col md:flex-row items-start justify-between gap-10 py-8 text-[#1A1A1A]/60">
                     <div>
                         <Link href="/" className="text-4xl font-bold text-[#1A1A1A] hover:scale-105 transition-transform inline-block">
                             <span className="text-[#00C6A2]">4</span>joint
@@ -116,11 +116,11 @@ const Footer = () => {
                         ))}
                     </div>
                 </div>
-                <div className="py-4 space-y-2">
-                    <p className="text-sm text-[#1A1A1A]/70">
+                <div className="pt-8 mt-8 border-t border-[#00C6A2]/5 space-y-2">
+                    <p className="text-xs text-[#1A1A1A]/50">
                         Copyright 2025 © 4joint Todos los derechos reservados.
                     </p>
-                    <p className="text-xs text-[#1A1A1A]/60 leading-relaxed">
+                    <p className="text-xs text-[#1A1A1A]/40 leading-relaxed">
                         Productos hemp/CBD legales en México. Mayores de 18+. No THC {'>'}1%.
                     </p>
                 </div>

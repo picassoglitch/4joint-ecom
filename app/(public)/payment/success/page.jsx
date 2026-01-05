@@ -61,12 +61,20 @@ function PaymentSuccessContent() {
                                 ID de pago: {paymentId}
                             </p>
                         )}
-                        <Link
-                            href="/orders"
-                            className="inline-block bg-[#00C6A2] hover:bg-[#00B894] text-white px-8 py-3 rounded-full font-semibold transition-all hover:scale-105 active:scale-95"
-                        >
-                            Ver Mis Pedidos
-                        </Link>
+                        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+                            <Link
+                                href="/shop"
+                                className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-[#00C6A2] to-[#00B894] hover:from-[#00B894] hover:to-[#00A885] text-white px-6 py-3.5 rounded-lg font-semibold transition-all hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl"
+                            >
+                                Continuar Comprando
+                            </Link>
+                            <Link
+                                href="/orders"
+                                className="flex-1 flex items-center justify-center gap-2 bg-white border-2 border-[#00C6A2] text-[#00C6A2] hover:bg-[#00C6A2]/5 px-6 py-3.5 rounded-lg font-semibold transition-all hover:scale-105 active:scale-95 shadow-md hover:shadow-lg"
+                            >
+                                Ver Pedidos
+                            </Link>
+                        </div>
                     </>
                 ) : (
                     <>

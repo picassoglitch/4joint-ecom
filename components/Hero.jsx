@@ -3,9 +3,10 @@ import { assets } from '@/assets/assets'
 import { ChevronRightIcon } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import CategoriesMarquee from './CategoriesMarquee'
-import { getHeroConfig } from '@/lib/supabase/siteConfig'
+import QuickActionStrip from './QuickActionStrip'
+import { getHeroConfig, getShippingBannerConfig } from '@/lib/supabase/siteConfig'
 
 const Hero = () => {
     const currency = 'MXN $'
@@ -14,83 +15,112 @@ const Hero = () => {
         bannerImage: '',
         showPrice: false
     })
+    const [shippingBannerConfig, setShippingBannerConfig] = useState({
+        enabled: true,
+        badgeText: 'NUEVO',
+        message: '¡Envío gratis en pedidos mayores a $800 MXN!',
+        showBadge: true
+    })
     const [loading, setLoading] = useState(true)
+    const [isVisible, setIsVisible] = useState(false)
+    const heroRef = useRef(null)
 
     useEffect(() => {
         loadHeroConfig()
     }, [])
 
+    // Scroll reveal effect
+    useEffect(() => {
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                if (entry.isIntersecting) {
+                    setIsVisible(true)
+                }
+            },
+            { threshold: 0.1, rootMargin: '50px' }
+        )
+
+        if (heroRef.current) {
+            observer.observe(heroRef.current)
+        }
+
+        return () => {
+            if (heroRef.current) {
+                observer.unobserve(heroRef.current)
+            }
+        }
+    }, [])
+
     const loadHeroConfig = async () => {
         try {
-            const config = await getHeroConfig()
-            setHeroConfig(config)
-        } catch (error) {
-            // Only log meaningful errors
-            if (error?.message && error.message.trim()) {
-                console.warn('Error loading hero config:', error.message)
+            const [heroConfigData, shippingBannerData] = await Promise.all([
+                getHeroConfig(),
+                getShippingBannerConfig()
+            ])
+            setHeroConfig(heroConfigData)
+            if (shippingBannerData) {
+                setShippingBannerConfig(shippingBannerData)
             }
-            // Use default config on error
-            setHeroConfig({
-                title: 'Productos 420 que amas. Precios que confías.',
-                bannerImage: '',
-                showPrice: false
-            })
+        } catch (error) {
+            console.error('Error loading hero config:', error)
         } finally {
             setLoading(false)
         }
     }
 
     return (
-        <div className='mx-6'>
-            <div className='flex max-xl:flex-col gap-12 max-w-7xl mx-auto my-16'>
-                <div className='relative flex-1 flex flex-col bg-white/60 backdrop-blur-md rounded-[2rem] xl:min-h-[500px] group overflow-hidden border border-[#00C6A2]/8 shadow-[0_8px_32px_rgba(0,198,162,0.06)] hover:shadow-[0_12px_48px_rgba(0,198,162,0.1)] transition-all duration-500'>
-                    {/* Soft gradient overlay */}
-                    <div className='absolute inset-0 bg-gradient-to-br from-[#00C6A2]/5 via-transparent to-[#00C6A2]/3'></div>
-                    
-                    {/* Image with fade effect */}
-                    {heroConfig.bannerImage && heroConfig.bannerImage.trim() !== '' && (
-                        <div className='absolute inset-0 overflow-hidden'>
-                            <div className='absolute inset-0 bg-gradient-to-r from-white/90 via-white/70 to-transparent z-10'></div>
-                            <div className='absolute bottom-0 right-0 md:right-12 w-full sm:max-w-md opacity-40 group-hover:opacity-50 transition-opacity duration-500'>
-                                <Image 
-                                    className='w-full h-auto object-contain' 
-                                    src={heroConfig.bannerImage} 
-                                    alt="" 
-                                    width={500} 
-                                    height={500}
-                                    style={{ filter: 'blur(0.5px)' }}
-                                />
-                            </div>
-                        </div>
-                    )}
-                    
-                    <div className='p-8 sm:p-20 relative z-20'>
-                        {/* Subtle badge */}
-                        <div className='inline-flex items-center gap-2.5 bg-white/90 backdrop-blur-sm text-[#1A1A1A]/80 px-4 py-2 rounded-full text-xs sm:text-sm border border-[#FFD95E]/20 shadow-sm mb-6 group-hover:shadow-md transition-shadow duration-300'>
-                            <span className='bg-gradient-to-r from-[#FFD95E]/20 to-[#FFD044]/20 px-3 py-1 rounded-full text-[#1A1A1A] text-xs font-medium'>NUEVO</span> 
-                            <span className='font-normal text-[#1A1A1A]/70'>Envío gratis en pedidos mayores a $800 MXN</span>
-                            <ChevronRightIcon className='text-[#1A1A1A]/40 group-hover:translate-x-0.5 transition-transform duration-300' size={14} />
-                        </div>
-                        
-                        {/* Editorial headline */}
-                        <h2 className='text-4xl sm:text-5xl lg:text-7xl leading-[1.15] my-6 sm:my-8 font-semibold text-[#1A1A1A] max-w-2xl tracking-tight'>
-                            {heroConfig.title}
-                        </h2>
-                        
-                        {heroConfig.showPrice && (
-                            <div className='text-[#1A1A1A] mt-8 sm:mt-12'>
-                                <p className='text-[#1A1A1A]/50 text-sm font-normal mb-2'>Desde</p>
-                                <p className='text-5xl font-semibold text-[#00C6A2] tracking-tight'>{currency}199</p>
+        <div 
+            ref={heroRef}
+            className={`px-4 sm:mx-6 transition-all duration-700 ease-out ${
+                isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+            }`}
+        >
+            {/* RESPONSIVE FIX: Responsive container - Reduced height for marketplace feel */}
+            <div className='flex max-xl:flex-col gap-4 sm:gap-6 max-w-7xl mx-auto my-4 sm:my-6'>
+                <div className='relative flex-1 flex flex-col bg-gradient-to-br from-[#00C6A2]/20 via-[#00C6A2]/10 to-[#00C6A2]/5 rounded-2xl group overflow-hidden border border-[#00C6A2]/20 shadow-lg hover:shadow-xl transition-all duration-300'>
+                    <div className='absolute inset-0 bg-gradient-to-br from-white/10 to-transparent'></div>
+                    <div className='p-4 sm:p-8 md:p-12 relative z-10'>
+                        {shippingBannerConfig.enabled && (
+                            <div className='inline-flex items-center gap-3 bg-gradient-to-r from-[#FFD95E]/40 to-[#FFD95E]/30 text-[#1A1A1A] pr-4 p-1.5 rounded-full text-xs sm:text-sm border border-[#FFD95E]/50 shadow-sm backdrop-blur-sm'>
+                                {shippingBannerConfig.showBadge && (
+                                    <span className='bg-gradient-to-r from-[#FFD95E] to-[#FFD044] px-3 py-1 max-sm:ml-1 rounded-full text-[#1A1A1A] text-xs font-bold shadow-sm'>
+                                        {shippingBannerConfig.badgeText || 'NUEVO'}
+                                    </span>
+                                )}
+                                <span className='font-medium'>{shippingBannerConfig.message || '¡Envío gratis en pedidos mayores a $800 MXN!'}</span>
+                                <ChevronRightIcon className='group-hover:translate-x-1 transition-transform duration-300' size={16} />
                             </div>
                         )}
+                        <h2 className='text-2xl sm:text-4xl lg:text-5xl leading-[1.1] my-2 sm:my-3 font-bold text-[#1A1A1A] max-w-xs sm:max-w-md lg:max-w-lg'>
+                            {heroConfig.title}
+                        </h2>
+                        <p className='text-sm sm:text-base text-[#1A1A1A]/70 mb-3 sm:mb-4'>
+                            Productos verificados • Entrega rápida • Calidad garantizada
+                        </p>
                         
-                        {/* Calm CTA button */}
-                        <Link href="/shop">
-                            <button className='bg-gradient-to-r from-[#00C6A2] to-[#00B894] hover:from-[#00B894] hover:to-[#00A885] text-white text-sm font-medium py-4 px-10 sm:py-5 sm:px-14 mt-8 sm:mt-12 rounded-full hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 shadow-[0_4px_16px_rgba(0,198,162,0.2)] hover:shadow-[0_6px_24px_rgba(0,198,162,0.3)]'>
-                                Explorar productos
-                            </button>
-                        </Link>
+                        {/* Quick Action Strip */}
+                        <QuickActionStrip />
+                        
+                        <div className='flex items-center gap-3 mt-4 sm:mt-6'>
+                            <Link href="/shop">
+                                <button className='bg-gradient-to-r from-[#00C6A2] to-[#00B894] hover:from-[#00B894] hover:to-[#00A885] text-white text-sm font-bold py-2.5 px-6 sm:py-3 sm:px-8 rounded-full hover:scale-105 active:scale-95 transition-all shadow-md hover:shadow-lg'>
+                                    Explorar Todo
+                                </button>
+                            </Link>
+                            {heroConfig.showPrice && (
+                                <div className='text-[#1A1A1A] text-xs sm:text-sm font-medium'>
+                                    <p className='text-slate-500'>Desde</p>
+                                    <p className='text-xl sm:text-2xl font-bold text-[#00C6A2]'>{currency}199</p>
+                                </div>
+                            )}
+                        </div>
                     </div>
+                    {heroConfig.bannerImage && heroConfig.bannerImage.trim() !== '' && (
+                        <div className='sm:absolute bottom-0 right-0 md:right-10 w-full sm:max-w-sm opacity-90 group-hover:opacity-100 transition-opacity duration-300'>
+                            {/* FIX: Added priority for LCP optimization - hero image is above the fold */}
+                            <Image className='w-full h-auto' src={heroConfig.bannerImage} alt="" width={400} height={400} priority />
+                        </div>
+                    )}
                 </div>
             </div>
             <CategoriesMarquee />

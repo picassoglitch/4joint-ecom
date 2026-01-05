@@ -3,17 +3,41 @@ import React, { useEffect, useState } from 'react'
 import toast from 'react-hot-toast';
 import { getCurrentUser } from '@/lib/supabase/auth';
 import { getOrders } from '@/lib/supabase/database';
+import { getBannerConfig } from '@/lib/supabase/siteConfig';
 
 export default function Banner() {
     const [isOpen, setIsOpen] = useState(true);
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [hasFirstOrder, setHasFirstOrder] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
+    const [bannerConfig, setBannerConfig] = useState({
+        enabled: true,
+        text: '¡Obtén 1 gr gratis en tu primer pedido!',
+        buttonText: 'Reclamar Oferta',
+        loginButtonText: 'Iniciar Sesión',
+        couponCode: '1GRGRATIS',
+        icon: '🎁',
+        showForAuthenticated: true,
+        showForUnauthenticated: true
+    });
 
     useEffect(() => {
-        // Check if user is authenticated and if they have orders
-        const checkAuthAndOrders = async () => {
+        // Load banner config and check auth/orders
+        const loadConfigAndCheckAuth = async () => {
             try {
+                // Load banner configuration
+                const config = await getBannerConfig();
+                if (config) {
+                    setBannerConfig(config);
+                    // If banner is disabled, don't show it
+                    if (!config.enabled) {
+                        setIsOpen(false);
+                        setIsLoading(false);
+                        return;
+                    }
+                }
+
+                // Check if user is authenticated and if they have orders
                 const user = await getCurrentUser();
                 if (user) {
                     setIsAuthenticated(true);
@@ -25,12 +49,12 @@ export default function Banner() {
                 }
             } catch (error) {
                 setIsAuthenticated(false);
-                console.error('Error checking auth:', error);
+                console.error('Error loading banner config or checking auth:', error);
             } finally {
                 setIsLoading(false);
             }
         };
-        checkAuthAndOrders();
+        loadConfigAndCheckAuth();
     }, []);
 
     const handleClaim = async () => {
@@ -55,7 +79,7 @@ export default function Banner() {
         // Try to copy code to clipboard if available
         if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
             try {
-                await navigator.clipboard.writeText('1GRGRATIS');
+                await navigator.clipboard.writeText(bannerConfig.couponCode || '1GRGRATIS');
             } catch (err) {
                 // Clipboard API failed, but that's okay - we already showed success message
                 console.log('Clipboard API not available:', err);
@@ -63,8 +87,22 @@ export default function Banner() {
         }
     };
 
-    // Don't show banner if user has already made their first order
-    if (isLoading || (isAuthenticated && hasFirstOrder) || !isOpen) {
+    // Don't show banner if:
+    // - Still loading
+    // - Banner is disabled
+    // - User has already made their first order (if authenticated)
+    // - Banner was manually closed
+    // - Should not show for authenticated users
+    // - Should not show for unauthenticated users
+    if (isLoading || !bannerConfig.enabled || !isOpen) {
+        return null;
+    }
+
+    if (isAuthenticated && (!bannerConfig.showForAuthenticated || hasFirstOrder)) {
+        return null;
+    }
+
+    if (!isAuthenticated && !bannerConfig.showForUnauthenticated) {
         return null;
     }
 
@@ -72,15 +110,17 @@ export default function Banner() {
         <div className="w-full px-6 py-3 font-medium text-sm text-[#1A1A1A] text-center bg-gradient-to-r from-[#00C6A2] via-[#00C6A2] to-[#FFD95E] shadow-md">
             <div className='flex items-center justify-between max-w-7xl mx-auto'>
                 <div className="flex items-center gap-2">
-                    <span className="text-lg">🎁</span>
-                    <p className="font-bold">¡Obtén 1 gr gratis en tu primer pedido!</p>
+                    <span className="text-lg">{bannerConfig.icon || '🎁'}</span>
+                    <p className="font-bold">{bannerConfig.text || '¡Obtén 1 gr gratis en tu primer pedido!'}</p>
                     {!isAuthenticated && (
                         <span className="text-[10px] opacity-80 font-medium">*Solo usuarios registrados</span>
                     )}
                 </div>
                 <div className="flex items-center space-x-4">
                     {isAuthenticated ? (
-                        <button onClick={handleClaim} type="button" className="font-bold text-[#1A1A1A] bg-white/95 hover:bg-white px-7 py-2.5 rounded-full max-sm:hidden transition-all hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl">Reclamar Oferta</button>
+                        <button onClick={handleClaim} type="button" className="font-bold text-[#1A1A1A] bg-white/95 hover:bg-white px-7 py-2.5 rounded-full max-sm:hidden transition-all hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl">
+                            {bannerConfig.buttonText || 'Reclamar Oferta'}
+                        </button>
                     ) : (
                         <button 
                             onClick={() => {
@@ -91,7 +131,7 @@ export default function Banner() {
                             type="button"
                             className="font-bold text-[#1A1A1A] bg-white/95 hover:bg-white px-7 py-2.5 rounded-full max-sm:hidden transition-all hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl"
                         >
-                            Iniciar Sesión
+                            {bannerConfig.loginButtonText || 'Iniciar Sesión'}
                         </button>
                     )}
                     <button onClick={() => setIsOpen(false)} type="button" className="font-normal text-[#1A1A1A] p-2 rounded-full hover:bg-white/30 transition-all hover:scale-110">

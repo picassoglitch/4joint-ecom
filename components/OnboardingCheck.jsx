@@ -15,33 +15,14 @@ export default function OnboardingCheck() {
 
     const checkOnboarding = async () => {
         try {
-            // First check localStorage (works for both authenticated and non-authenticated users)
-            const hasLocation = localStorage.getItem('user_location_set')
-            const savedLocation = localStorage.getItem('user_location')
-            
-            if (hasLocation && savedLocation) {
-                try {
-                    const location = JSON.parse(savedLocation)
-                    if (location.lat && location.lng) {
-                        // User has location saved, no need to show onboarding
-                        setChecked(true)
-                        return
-                    }
-                } catch (e) {
-                    // Invalid JSON, continue to check
-                }
-            }
-
-            // If no location in localStorage, check if user is authenticated and has location on server
             const { user } = await getCurrentUser()
             if (!user) {
-                // Not authenticated and no location in localStorage - show onboarding
-                setShowOnboarding(true)
                 setChecked(true)
                 return
             }
 
-            // User is authenticated, try to get location from server
+            // Check if user has completed onboarding
+            // Get session token for API call
             const { supabase } = await import('@/lib/supabase/client')
             const { data: { session } } = await supabase.auth.getSession()
 
@@ -53,33 +34,43 @@ export default function OnboardingCheck() {
                         },
                     })
                     
+                    // FIX 500: Handle new response format - always returns 200
                     if (response.ok) {
-                        const { data } = await response.json()
-                        if (data && data.has_completed_onboarding && data.latitude && data.longitude) {
-                            // User has completed onboarding and has location
-                            // Also save to localStorage for consistency
-                            localStorage.setItem('user_location', JSON.stringify({
-                                lat: data.latitude,
-                                lng: data.longitude,
-                                place: data.location_place
-                            }))
-                            localStorage.setItem('user_location_set', 'true')
-                            setChecked(true)
-                            return
+                        const result = await response.json()
+                        // Check if location is available and onboarding is needed
+                        if (result.ok && result.data && !result.data.has_completed_onboarding) {
+                            setShowOnboarding(true)
+                        } else if (!result.ok || !result.data) {
+                            // No location available - check localStorage as fallback
+                            const hasLocation = localStorage.getItem('user_location_set')
+                            if (!hasLocation) {
+                                setShowOnboarding(true)
+                            }
+                        }
+                    } else {
+                        // FIX 500: Should not happen now, but handle gracefully
+                        const hasLocation = localStorage.getItem('user_location_set')
+                        if (!hasLocation) {
+                            setShowOnboarding(true)
                         }
                     }
-                } catch (error) {
-                    // API call failed, but that's okay - we'll check localStorage above
-                    console.warn('Could not check server location:', error?.message || 'Unknown error')
+                } catch (fetchError) {
+                    // FIX 500: Handle fetch errors gracefully
+                    console.error('Error fetching location:', fetchError)
+                    const hasLocation = localStorage.getItem('user_location_set')
+                    if (!hasLocation) {
+                        setShowOnboarding(true)
+                    }
+                }
+            } else {
+                // No session, check localStorage as fallback
+                const hasLocation = localStorage.getItem('user_location_set')
+                if (!hasLocation) {
+                    setShowOnboarding(true)
                 }
             }
-
-            // No location found anywhere - show onboarding
-            setShowOnboarding(true)
         } catch (error) {
-            console.warn('Error checking onboarding:', error?.message || 'Unknown error')
-            // On error, show onboarding so user can set location
-            setShowOnboarding(true)
+            console.error('Error checking onboarding:', error)
         } finally {
             setChecked(true)
         }

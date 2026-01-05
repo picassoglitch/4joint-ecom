@@ -41,8 +41,6 @@ model Product {
     category    String
     inStock     Boolean  @default(true)
     storeId     String
-    quantity    Float?   // Quantity (e.g., 1, 3.5, 10)
-    unit        String?  // Unit: "g" (gramos) or "ml" (mililitros)
     createdAt   DateTime @default(now())
     updatedAt   DateTime @updatedAt
 
@@ -179,10 +177,6 @@ model Store {
     latitude        Float?
     longitude       Float?
     serviceRadiusKm Float?  @default(10.0) // Service radius in kilometers
-    serviceColonias Json?   @default("[]") // Array of colonias where store delivers (e.g., ["Roma Norte, Cuauhtémoc", "Condesa, Cuauhtémoc"])
-    showStoreLocation Boolean @default(true) // Whether to show store location or only pickup point
-    showWhatsappContact Boolean @default(false) // Whether to show WhatsApp contact button in checkout
-    whatsappNumber String? // WhatsApp number to display (can be different from contact number)
     
     // Fulfillment modes
     fulfillmentModes Json   @default("{\"pickup\": false, \"delivery\": false, \"meetupPoint\": false}")

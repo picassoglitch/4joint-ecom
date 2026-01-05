@@ -1,14 +1,13 @@
 'use client'
 
 import { addToCart } from "@/lib/features/cart/cartSlice";
-import { StarIcon, TagIcon, EarthIcon, CreditCardIcon, UserIcon, MapPin } from "lucide-react";
+import { StarIcon, TagIcon, EarthIcon, CreditCardIcon, UserIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import Counter from "./Counter";
 import { useDispatch, useSelector } from "react-redux";
-import { getCurrentUser } from "@/lib/supabase/auth";
-import { supabase } from "@/lib/supabase/client";
+import { getSafeImageSource, normalizeImageSource } from "@/lib/utils/image";
 
 const ProductDetails = ({ product }) => {
     // Safety check: if product is not provided, return null
@@ -22,23 +21,25 @@ const ProductDetails = ({ product }) => {
 
     const productId = product.id;
     const currency = 'MXN $';
-    const storeId = product.storeId || product.vendor_id;
 
     const cart = useSelector(state => state.cart.cartItems);
     const dispatch = useDispatch();
 
     const router = useRouter()
 
-    // Safely get images array
-    const productImages = Array.isArray(product.images) && product.images.length > 0 
+    // Safely get images array and normalize them
+    const PLACEHOLDER_PATH = '/img/placeholder-product.svg'
+    const rawImages = Array.isArray(product.images) && product.images.length > 0 
         ? product.images 
-        : ['/placeholder-product.png'];
+        : [];
+    
+    const productImages = rawImages.length > 0
+        ? rawImages.map(img => getSafeImageSource(img, productId, PLACEHOLDER_PATH))
+        : [PLACEHOLDER_PATH];
     
     const [mainImage, setMainImage] = useState(productImages[0]);
+    const [imageErrors, setImageErrors] = useState({});
     const [selectedVariant, setSelectedVariant] = useState(null);
-    const [userLocation, setUserLocation] = useState(null);
-    const [deliveryStatus, setDeliveryStatus] = useState(null);
-    const [checkingDelivery, setCheckingDelivery] = useState(false);
 
     // Get variants from product (can be array or null)
     const variants = product.variants && Array.isArray(product.variants) && product.variants.length > 0
@@ -51,66 +52,6 @@ const ProductDetails = ({ product }) => {
             setSelectedVariant(variants[0])
         }
     }, [variants])
-
-    // Get user location
-    useEffect(() => {
-        const fetchUserLocation = async () => {
-            try {
-                const { user } = await getCurrentUser()
-                if (!user) return
-
-                const response = await fetch('/api/user/location', {
-                    headers: {
-                        'Authorization': `Bearer ${(await getCurrentUser()).user?.id ? (await supabase.auth.getSession()).data.session?.access_token : ''}`
-                    }
-                })
-                
-                if (response.ok) {
-                    const { data } = await response.json()
-                    if (data?.latitude && data?.longitude) {
-                        setUserLocation({
-                            lat: data.latitude,
-                            lng: data.longitude,
-                            place: data.location_place
-                        })
-                    }
-                }
-            } catch (error) {
-                console.error('Error fetching user location:', error)
-            }
-        }
-
-        fetchUserLocation()
-    }, [])
-
-    // Check delivery radius
-    useEffect(() => {
-        const checkDelivery = async () => {
-            if (!storeId || !userLocation?.lat || !userLocation?.lng) {
-                setDeliveryStatus(null)
-                return
-            }
-
-            setCheckingDelivery(true)
-            try {
-                const response = await fetch(
-                    `/api/stores/check-delivery?storeId=${storeId}&userLat=${userLocation.lat}&userLng=${userLocation.lng}`
-                )
-                if (response.ok) {
-                    const data = await response.json()
-                    setDeliveryStatus(data)
-                }
-            } catch (error) {
-                console.error('Error checking delivery:', error)
-            } finally {
-                setCheckingDelivery(false)
-            }
-        }
-
-        checkDelivery()
-    }, [storeId, userLocation])
-
-    const isOutsideRadius = deliveryStatus && !deliveryStatus.withinRadius
 
     // Get current price based on variant or product price
     const currentPrice = selectedVariant ? selectedVariant.price : (product.price || 0);
@@ -140,23 +81,64 @@ const ProductDetails = ({ product }) => {
         <div className="flex max-lg:flex-col gap-12 my-8">
             <div className="flex max-sm:flex-col-reverse gap-4">
                 <div className="flex sm:flex-col gap-3">
-                    {productImages.map((image, index) => (
-                        <div key={index} onClick={() => setMainImage(productImages[index])} className="bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center size-26 rounded-xl group cursor-pointer border border-slate-200 hover:border-[#00C6A2]/40 transition-all hover:scale-105 shadow-sm">
-                            <Image src={image} className="group-hover:scale-110 transition-transform duration-300" alt="" width={45} height={45} />
-                        </div>
-                    ))}
+                    {productImages.map((image, index) => {
+                        const imageKey = `thumb-${index}`
+                        const hasError = imageErrors[imageKey]
+                        const safeSrc = hasError ? PLACEHOLDER_PATH : image
+                        
+                        return (
+                            <div key={index} onClick={() => setMainImage(safeSrc)} className="bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center size-26 rounded-xl group cursor-pointer border border-slate-200 hover:border-[#00C6A2]/40 transition-all hover:scale-105 shadow-sm">
+                                <Image 
+                                    src={safeSrc} 
+                                    className="group-hover:scale-110 transition-transform duration-300" 
+                                    alt="" 
+                                    width={45} 
+                                    height={45}
+                                    onError={(e) => {
+                                        // Prevent infinite loop: only handle error once using dataset flag
+                                        if (e.currentTarget.dataset.fallbackApplied) return
+                                        e.currentTarget.dataset.fallbackApplied = '1'
+                                        
+                                        if (!imageErrors[imageKey]) {
+                                            if (process.env.NODE_ENV !== 'production') {
+                                                console.error('Thumbnail image failed to load:', { productId, index, attemptedSrc: image })
+                                            }
+                                            setImageErrors(prev => ({ ...prev, [imageKey]: true }))
+                                            // Update src to placeholder only if not already set
+                                            if (e.currentTarget.src !== PLACEHOLDER_PATH && !e.currentTarget.src.includes('placeholder-product')) {
+                                                e.currentTarget.src = PLACEHOLDER_PATH
+                                            }
+                                        }
+                                    }}
+                                />
+                            </div>
+                        )
+                    })}
                 </div>
                 <div className="flex justify-center items-center h-100 sm:size-113 bg-gradient-to-br from-slate-50 to-slate-100 rounded-2xl border border-slate-200 shadow-lg overflow-hidden">
-                    <Image src={mainImage || productImages[0]} alt={product.name || 'Product'} width={400} height={400} className="object-contain" />
+                    <Image 
+                        src={mainImage || productImages[0] || PLACEHOLDER_PATH} 
+                        alt={product.name || 'Product'} 
+                        width={400} 
+                        height={400} 
+                        className="object-contain"
+                        onError={(e) => {
+                            // Prevent infinite loop: only handle error once using dataset flag
+                            if (e.currentTarget.dataset.fallbackApplied) return
+                            e.currentTarget.dataset.fallbackApplied = '1'
+                            
+                            if (e.currentTarget.src !== PLACEHOLDER_PATH && !e.currentTarget.src.includes('placeholder-product')) {
+                                if (process.env.NODE_ENV !== 'production') {
+                                    console.error('Main image failed to load:', { productId, attemptedSrc: mainImage || productImages[0] })
+                                }
+                                e.currentTarget.src = PLACEHOLDER_PATH
+                            }
+                        }}
+                    />
                 </div>
             </div>
             <div className="flex-1">
                 <h1 className="text-4xl font-bold text-[#1A1A1A] mb-3">{product.name}</h1>
-                {product.quantity && product.unit && (
-                    <p className="text-lg text-slate-600 mb-3 font-medium">
-                        {product.quantity}{product.unit}
-                    </p>
-                )}
                 {ratings.length > 0 && (
                     <div className='flex items-center gap-2 mt-2 mb-4'>
                         {Array(5).fill('').map((_, index) => (
@@ -182,9 +164,6 @@ const ProductDetails = ({ product }) => {
                                 >
                                     <div className="text-center">
                                         <div className="font-bold">{variant.name}</div>
-                                        {variant.quantity && variant.unit && (
-                                            <div className="text-xs opacity-75 mt-0.5">{variant.quantity}{variant.unit}</div>
-                                        )}
                                         <div className="text-sm opacity-90 mt-1">{currency}{variant.price?.toLocaleString('es-MX')}</div>
                                     </div>
                                 </button>
@@ -229,32 +208,12 @@ const ProductDetails = ({ product }) => {
                         const cartKey = selectedVariant ? `${productId}_${selectedVariant.name}` : productId;
                         const isInCart = cart[cartKey] || (!variants && cart[productId]);
                         return (
-                            <div className="flex flex-col gap-2">
-                                <button 
-                                    onClick={() => {
-                                        if (isOutsideRadius) {
-                                            return
-                                        }
-                                        !isInCart ? addToCartHandler() : router.push('/cart')
-                                    }}
-                                    disabled={isOutsideRadius}
-                                    className={`px-12 py-4 text-base font-bold rounded-full transition-all shadow-lg ${
-                                        isOutsideRadius
-                                            ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
-                                            : 'bg-gradient-to-r from-[#00C6A2] to-[#00B894] hover:from-[#00B894] hover:to-[#00A885] text-white hover:scale-105 active:scale-95 hover:shadow-xl'
-                                    }`}
-                                >
-                                    {!isInCart ? 'Agregar al Carrito' : 'Ver Carrito'}
-                                </button>
-                                {isOutsideRadius && deliveryStatus && (
-                                    <div className="flex items-center gap-2 px-4 py-2 bg-red-50 border border-red-200 rounded-xl">
-                                        <MapPin size={16} className="text-red-600" />
-                                        <p className="text-sm font-semibold text-red-600">
-                                            {deliveryStatus.message}
-                                        </p>
-                                    </div>
-                                )}
-                            </div>
+                            <button 
+                                onClick={() => !isInCart ? addToCartHandler() : router.push('/cart')} 
+                                className="bg-gradient-to-r from-[#00C6A2] to-[#00B894] hover:from-[#00B894] hover:to-[#00A885] text-white px-12 py-4 text-base font-bold rounded-full hover:scale-105 active:scale-95 transition-all shadow-lg hover:shadow-xl"
+                            >
+                                {!isInCart ? 'Agregar al Carrito' : 'Ver Carrito'}
+                            </button>
                         );
                     })()}
                 </div>

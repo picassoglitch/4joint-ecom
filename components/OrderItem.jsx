@@ -87,9 +87,10 @@ const OrderItem = ({ order }) => {
                                     ? (item.variant?.name || '1 gr gratis')
                                     : (product?.name || 'Producto no disponible');
                                 const productImages = product?.images || [];
+                                const PLACEHOLDER_PATH = '/img/placeholder-product.svg'
                                 const productImage = Array.isArray(productImages) && productImages.length > 0 
                                     ? productImages[0] 
-                                    : '/placeholder-product.png';
+                                    : PLACEHOLDER_PATH;
                                 
                                 return (
                                     <div key={item.id || index} className="flex items-center gap-4">
@@ -101,6 +102,15 @@ const OrderItem = ({ order }) => {
                                                     alt={productName}
                                                     width={50}
                                                     height={50}
+                                                    onError={(e) => {
+                                                        // Prevent infinite loop: only handle error once using dataset flag
+                                                        if (e.currentTarget.dataset.fallbackApplied) return
+                                                        e.currentTarget.dataset.fallbackApplied = '1'
+                                                        
+                                                        if (e.currentTarget.src !== PLACEHOLDER_PATH && !e.currentTarget.src.includes('placeholder-product')) {
+                                                            e.currentTarget.src = PLACEHOLDER_PATH
+                                                        }
+                                                    }}
                                                 />
                                             )}
                                         </div>

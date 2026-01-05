@@ -6,8 +6,22 @@ const nextConfig = {
             {
                 protocol: 'https',
                 hostname: '**.supabase.co',
+                pathname: '/storage/v1/object/public/**',
+            },
+            {
+                protocol: 'https',
+                hostname: 'yqttcfpeebdycpyjmnrv.supabase.co',
+                pathname: '/storage/v1/object/public/**',
+            },
+            // FIX: Explicit pattern for Supabase storage public URLs
+            {
+                protocol: 'https',
+                hostname: 'yqttcfpeebdycpyjmnrv.supabase.co',
+                pathname: '/storage/v1/object/public/product-images/**',
             },
         ],
+        // Fallback for older Next.js versions
+        domains: ['yqttcfpeebdycpyjmnrv.supabase.co'],
     },
     // Configuración para dominio personalizado
     async headers() {

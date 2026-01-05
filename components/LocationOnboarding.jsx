@@ -32,114 +32,79 @@ export default function LocationOnboarding({ isOpen, onComplete }) {
 
             navigator.geolocation.getCurrentPosition(
                 async (position) => {
+                    const { latitude, longitude } = position.coords
+                    
+                    // Reverse geocode to get human-readable place and postal code
                     try {
-                        const { latitude, longitude } = position.coords
+                        const response = await fetch(
+                            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`
+                        )
                         
-                        // Reverse geocode to get human-readable place
-                        try {
-                            const response = await fetch(
-                                `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`
-                            )
-                            const data = await response.json()
-                            
-                            const place = data.display_name || 
-                                `${data.address?.postcode || ''} ${data.address?.city || data.address?.town || ''}`.trim() ||
-                                `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
-
-                            setLocation({
-                                lat: latitude,
-                                lng: longitude,
-                                place: place
-                            })
-                            
-                            // Save to user profile
-                            await saveUserLocation(latitude, longitude, place)
-                            
-                            toast.success('Ubicación guardada exitosamente')
-                            onComplete({ lat: latitude, lng: longitude, place })
-                    } catch (error) {
-                        // Safe error logging
-                        if (error?.message) {
-                            console.warn('Error reverse geocoding:', error.message)
+                        if (!response.ok) {
+                            throw new Error('Reverse geocoding failed')
                         }
+                        
+                        const data = await response.json()
+                        
+                        // Extract postal code
+                        const postcode = data.address?.postcode || data.address?.postal_code || ''
+                        
+                        // Build place name with postal code if available
+                        const place = data.display_name || 
+                            (postcode ? `${postcode}, ${data.address?.city || data.address?.town || data.address?.municipality || ''}`.trim() : '') ||
+                            `${data.address?.city || data.address?.town || ''}`.trim() ||
+                            `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
+
+                        setLocation({
+                            lat: latitude,
+                            lng: longitude,
+                            place: place,
+                            postcode: postcode
+                        })
+                        
+                        // Save to user profile with postal code
+                        await saveUserLocation(latitude, longitude, place, postcode)
+                        
+                        toast.success('Ubicación guardada exitosamente')
+                        onComplete({ lat: latitude, lng: longitude, place, postcode })
+                    } catch (error) {
+                        console.error('Error reverse geocoding:', error)
                         // Save with coordinates as place name
                         const place = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
-                        setLocation({ lat: latitude, lng: longitude, place })
-                        await saveUserLocation(latitude, longitude, place)
+                        setLocation({ lat: latitude, lng: longitude, place, postcode: '' })
+                        await saveUserLocation(latitude, longitude, place, '')
                         toast.success('Ubicación guardada exitosamente')
-                        onComplete({ lat: latitude, lng: longitude, place })
+                        onComplete({ lat: latitude, lng: longitude, place, postcode: '' })
                     }
-                } catch (error) {
-                    // Safe error logging
-                    if (error?.message) {
-                        console.warn('Error processing location:', error.message)
-                    }
-                    toast.error('Error al procesar la ubicación. Intenta de nuevo.')
-                    setLoading(false)
-                }
                 },
                 (error) => {
-                    // Improved error handling - avoid logging empty objects
-                    let errorCode = null
-                    let errorMessage = null
-                    
-                    // Safely extract error information
-                    if (error && typeof error === 'object') {
-                        // Check if error has enumerable properties
-                        const hasProperties = Object.keys(error).length > 0
-                        if (hasProperties) {
-                            errorCode = error.code
-                            errorMessage = error.message
-                        }
-                    } else if (typeof error === 'string' && error.trim()) {
-                        errorMessage = error
+                    // Handle timeout gracefully - this is expected behavior
+                    if (error.code === 3) { // TIMEOUT
+                        toast.error('La solicitud de ubicación tardó demasiado. Puedes ingresar tu ubicación manualmente.')
+                        setLocationMethod('manual')
+                        setLoading(false)
+                        return
                     }
                     
-                    // Only log if we have meaningful information
-                    if (errorCode !== null || (errorMessage && errorMessage.trim())) {
-                        const errorType = errorCode === 1 ? 'PERMISSION_DENIED' :
-                                        errorCode === 2 ? 'POSITION_UNAVAILABLE' :
-                                        errorCode === 3 ? 'TIMEOUT' : 'UNKNOWN'
-                        
-                        const logMessage = errorMessage || `Error code: ${errorCode}`
-                        console.warn(`Geolocation ${errorType}:`, logMessage)
-                    }
-                    // If error object is empty, don't log anything
-                    
-                    // Provide user-friendly error messages based on error code
-                    let errorToast = ''
-                    if (errorCode === 1) {
-                        errorToast = 'Permiso de ubicación denegado. Usa la opción manual abajo.'
-                    } else if (errorCode === 2) {
-                        errorToast = 'No se pudo determinar tu ubicación. Usa la opción manual abajo.'
-                    } else if (errorCode === 3) {
-                        errorToast = 'Tiempo de espera agotado. Usa la opción manual abajo.'
+                    // Handle other errors
+                    if (error.code === 1) { // PERMISSION_DENIED
+                        toast.error('Permiso de ubicación denegado. Puedes ingresar tu ubicación manualmente.')
                     } else {
-                        errorToast = 'No se pudo obtener tu ubicación automáticamente. Usa la opción manual abajo.'
+                        toast.error('No se pudo obtener tu ubicación. Intenta ingresarla manualmente.')
                     }
-                    
-                    // Show toast and automatically switch to manual input
-                    toast.error(errorToast, { duration: 4000 })
                     setLocationMethod('manual')
                     setLoading(false)
                 },
                 {
-                    enableHighAccuracy: true,
-                    timeout: 15000, // Increased timeout
-                    maximumAge: 300000 // 5 minutes cache
+                    enableHighAccuracy: false, // Changed to false for faster response
+                    timeout: 10000, // 10 seconds timeout
+                    maximumAge: 60000 // Accept cached location up to 1 minute old
                 }
             )
         } catch (error) {
-            // Safe error logging - only log if there's meaningful information
-            if (error && typeof error === 'object' && error.message) {
-                console.warn('Error getting location:', error.message)
-            } else if (typeof error === 'string') {
-                console.warn('Error getting location:', error)
-            }
-            // Don't log empty objects
-            
-            toast.error('Error al obtener ubicación. Usa la opción manual abajo.', { duration: 4000 })
-            setLocationMethod('manual')
+            console.error('Error getting location:', error)
+            toast.error('Error al obtener ubicación')
+        } finally {
             setLoading(false)
         }
     }
@@ -163,11 +128,15 @@ export default function LocationOnboarding({ isOpen, onComplete }) {
                 const lat = parseFloat(result.lat)
                 const lng = parseFloat(result.lon)
                 const place = result.display_name || manualInput
+                
+                // Extract postal code from result
+                const postcode = result.address?.postcode || result.address?.postal_code || 
+                                (manualInput.match(/\b\d{5}\b/)?.[0] || '') // Try to extract 5-digit code from input
 
-                setLocation({ lat, lng, place })
-                await saveUserLocation(lat, lng, place)
+                setLocation({ lat, lng, place, postcode })
+                await saveUserLocation(lat, lng, place, postcode)
                 toast.success('Ubicación guardada exitosamente')
-                onComplete({ lat, lng, place })
+                onComplete({ lat, lng, place, postcode })
             } else {
                 toast.error('No se encontró la ubicación. Intenta con un código postal o dirección más específica.')
             }
@@ -179,15 +148,13 @@ export default function LocationOnboarding({ isOpen, onComplete }) {
         }
     }
 
-    const saveUserLocation = async (lat, lng, place) => {
-        // Always save to localStorage first (works for both authenticated and non-authenticated users)
-        localStorage.setItem('user_location', JSON.stringify({ lat, lng, place }))
-        localStorage.setItem('user_location_set', 'true')
-        
+    const saveUserLocation = async (lat, lng, place, postcode = '') => {
         try {
             const { user } = await getCurrentUser()
             if (!user) {
-                // User not logged in - location is already saved to localStorage, that's fine
+                console.warn('User not logged in, cannot save location')
+                // Save to localStorage as fallback
+                localStorage.setItem('user_location', JSON.stringify({ lat, lng, place, postcode }))
                 return
             }
 
@@ -196,11 +163,11 @@ export default function LocationOnboarding({ isOpen, onComplete }) {
             const { data: { session } } = await supabase.auth.getSession()
 
             if (!session?.access_token) {
-                // No session token - location is already saved to localStorage, that's fine
+                console.warn('No session token available')
+                localStorage.setItem('user_location', JSON.stringify({ lat, lng, place, postcode }))
                 return
             }
 
-            // Try to save to server, but don't fail if it doesn't work
             const response = await fetch('/api/user/location', {
                 method: 'POST',
                 headers: {
@@ -211,17 +178,38 @@ export default function LocationOnboarding({ isOpen, onComplete }) {
                     latitude: lat,
                     longitude: lng,
                     locationPlace: place,
+                    postcode: postcode, // Include postal code
                     hasCompletedOnboarding: true,
                 }),
             })
 
             if (!response.ok) {
-                // If server save fails, that's okay - we already saved to localStorage
-                console.warn('Could not save location to server, but saved locally')
+                const errorData = await response.json().catch(() => ({}))
+                // If it's a 500 error about missing column, that's okay - we'll save locally
+                if (response.status === 500 && (errorData.error?.includes('column') || errorData.error?.includes('postcode'))) {
+                    console.log('Postcode column not available yet, saving to localStorage only')
+                    // Don't throw - just save locally and continue
+                } else {
+                    // For other errors, still save locally but log the error
+                    console.warn('Error saving location to database:', errorData.error)
+                }
+            }
+            
+            // Always save to localStorage as backup (whether API call succeeded or not)
+            localStorage.setItem('user_location', JSON.stringify({ lat, lng, place, postcode }))
+            localStorage.setItem('user_location_set', 'true')
+            if (postcode) {
+                localStorage.setItem('user_postcode', postcode)
             }
         } catch (error) {
-            // If anything fails, that's okay - we already saved to localStorage
-            console.warn('Could not save location to server, but saved locally:', error?.message || 'Unknown error')
+            console.error('Error saving location:', error)
+            // Save to localStorage as fallback - this ensures location is always saved
+            localStorage.setItem('user_location', JSON.stringify({ lat, lng, place, postcode }))
+            localStorage.setItem('user_location_set', 'true')
+            if (postcode) {
+                localStorage.setItem('user_postcode', postcode)
+            }
+            // Don't throw error - location is saved locally and will work
         }
     }
 
@@ -274,57 +262,45 @@ export default function LocationOnboarding({ isOpen, onComplete }) {
                         </div>
                     )}
 
-                    {(step === 1 && locationMethod === 'manual') && (
+                    {step === 1 && locationMethod === 'manual' && (
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             className="mt-6"
                         >
-                            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                                <p className="text-sm font-semibold text-blue-800 mb-1">
-                                    📍 Ingresa tu ubicación
-                                </p>
-                                <p className="text-xs text-blue-700">
-                                    Puedes usar código postal, colonia, ciudad o dirección
-                                </p>
-                            </div>
-                            <p className="text-sm text-[#1A1A1A]/70 mb-3 font-medium">
+                            <p className="text-sm text-[#1A1A1A]/70 mb-3">
                                 Ingresa tu código postal, colonia o ciudad:
                             </p>
                             <input
                                 type="text"
                                 value={manualInput}
                                 onChange={(e) => setManualInput(e.target.value)}
-                                placeholder="Ej: 06700, Roma Norte, CDMX, Ciudad de México"
-                                className="w-full border-2 border-slate-300 rounded-xl px-4 py-3 mb-4 focus:outline-none focus:ring-2 focus:ring-[#00C6A2] focus:border-[#00C6A2] text-base"
+                                placeholder="Ej: 06700, Roma Norte, CDMX"
+                                className="w-full border border-slate-300 rounded-lg px-4 py-3 mb-4 focus:outline-none focus:ring-2 focus:ring-[#00C6A2]"
                                 onKeyPress={(e) => {
-                                    if (e.key === 'Enter' && manualInput.trim()) {
+                                    if (e.key === 'Enter') {
                                         handleManualLocation()
                                     }
                                 }}
-                                autoFocus={locationMethod === 'manual'}
                             />
                             <div className="flex gap-3">
                                 <button
                                     onClick={handleManualLocation}
                                     disabled={loading || !manualInput.trim()}
-                                    className="flex-1 px-6 py-3 bg-gradient-to-r from-[#00C6A2] to-[#00B894] hover:from-[#00B894] hover:to-[#00A885] text-white font-bold rounded-full transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl"
+                                    className="flex-1 px-6 py-3 bg-[#00C6A2] hover:bg-[#00B894] text-white font-semibold rounded-full transition-all disabled:opacity-50"
                                 >
-                                    {loading ? 'Buscando...' : 'Buscar ubicación'}
+                                    {loading ? 'Buscando...' : 'Buscar'}
                                 </button>
                                 <button
                                     onClick={() => {
                                         setLocationMethod(null)
                                         setManualInput('')
                                     }}
-                                    className="px-6 py-3 bg-slate-100 hover:bg-slate-200 text-[#1A1A1A] font-semibold rounded-full transition-all"
+                                    className="px-6 py-3 bg-[#1A1A1A]/10 hover:bg-[#1A1A1A]/20 text-[#1A1A1A] font-semibold rounded-full transition-all"
                                 >
-                                    Volver
+                                    Cancelar
                                 </button>
                             </div>
-                            <p className="text-xs text-slate-500 mt-3 text-center">
-                                💡 Tip: Usa tu código postal para resultados más precisos
-                            </p>
                         </motion.div>
                     )}
 

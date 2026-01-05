@@ -23,6 +23,15 @@ export default function AgeGate() {
     const loadConfig = async () => {
         try {
             const ageGateConfig = await getSiteConfig('age_gate')
+            
+            // Handle HTTP 406 response - age gate required
+            if (ageGateConfig && ageGateConfig.ageGateRequired === true) {
+                // Use default config and show age gate
+                setIsVisible(true)
+                setLoading(false)
+                return
+            }
+            
             if (ageGateConfig) {
                 setConfig({
                     ageRequirement: ageGateConfig.ageRequirement || 18,

@@ -49,15 +49,13 @@ export async function GET(request) {
     return NextResponse.json({
       id: data.id,
       name: data.name,
-      contact: data.contact || '',
-      fulfillment_modes: data.fulfillment_modes || { pickup: false, delivery: false, meetupPoint: false },
+      fulfillment_modes: data.fulfillment_modes || { pickup: false, delivery: false, meetupPoint: false, courierExterno: false },
       meetup_points: data.meetup_points || [],
       courier_cost: data.courier_cost || 0,
       courier_cost_included: data.courier_cost_included || false,
       min_order: data.min_order || 0,
       delivery_notes: data.delivery_notes || '',
-      show_whatsapp_contact: data.show_whatsapp_contact || false,
-      whatsapp_number: data.whatsapp_number || '',
+      service_colonias: data.service_colonias || [],
     })
   } catch (error) {
     console.error('Error in store info API:', error)

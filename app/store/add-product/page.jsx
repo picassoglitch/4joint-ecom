@@ -7,6 +7,8 @@ import { uploadImage } from "@/lib/supabase/storage"
 import { Upload, Plus, X } from "lucide-react"
 import { getCurrentUser } from "@/lib/supabase/auth"
 import { useRouter } from "next/navigation"
+import { getSafeImageSource, normalizeImageSource } from "@/lib/utils/image"
+import ImageEditor from "@/components/store/ImageEditor"
 
 export default function StoreAddProduct() {
     const router = useRouter()
@@ -17,7 +19,12 @@ export default function StoreAddProduct() {
     const categories = ['Extractos', 'Flores', 'Otra (especificar)']
 
     const [imageUrls, setImageUrls] = useState({ 1: '', 2: '', 3: '', 4: '' })
+    const [imagePreviews, setImagePreviews] = useState({ 1: null, 2: null, 3: null, 4: null })
+    const [imageErrors, setImageErrors] = useState({ 1: false, 2: false, 3: false, 4: false })
     const [uploading, setUploading] = useState({ 1: false, 2: false, 3: false, 4: false })
+    const [editorOpen, setEditorOpen] = useState(false)
+    const [editorFile, setEditorFile] = useState(null)
+    const [editorImageKey, setEditorImageKey] = useState(null)
     const fileInputRefs = {
         1: useRef(null),
         2: useRef(null),
@@ -31,8 +38,6 @@ export default function StoreAddProduct() {
         price: 0,
         category: "",
         customCategory: "",
-        quantity: "",
-        unit: "",
     })
     const [variants, setVariants] = useState([])
     const [useVariants, setUseVariants] = useState(false)
@@ -77,22 +82,70 @@ export default function StoreAddProduct() {
             return
         }
 
-        // Validate file size (max 5MB)
-        if (file.size > 5 * 1024 * 1024) {
-            toast.error('La imagen debe ser menor a 5MB')
+        // Validate file size (max 10MB - increased for editing)
+        if (file.size > 10 * 1024 * 1024) {
+            toast.error('La imagen debe ser menor a 10MB')
             return
         }
 
+        // Open image editor instead of uploading directly
+        setEditorFile(file)
+        setEditorImageKey(imageKey)
+        setEditorOpen(true)
+        
+        // Reset file input
+        if (fileInputRefs[imageKey].current) {
+            fileInputRefs[imageKey].current.value = ''
+        }
+    }
+
+    const handleEditorSave = async (croppedFile) => {
+        if (!editorImageKey || !croppedFile) return
+
+        const imageKey = editorImageKey
         setUploading({ ...uploading, [imageKey]: true })
+        setImageErrors({ ...imageErrors, [imageKey]: false })
+
+        // Create preview URL for immediate display
+        const previewUrl = normalizeImageSource(croppedFile)
+        setImagePreviews({ ...imagePreviews, [imageKey]: previewUrl })
 
         try {
-            const url = await uploadImage(file, 'products')
-            setImageUrls({ ...imageUrls, [imageKey]: url })
+            const url = await uploadImage(croppedFile, 'products')
+            
+            // Ensure we save the full Supabase URL (uploadImage already returns the full URL)
+            // Don't normalize it again - use it as-is since it's already a complete URL
+            if (!url || typeof url !== 'string') {
+                throw new Error('URL de imagen inválida después de la subida')
+            }
+            
+            // Verify it's a full URL
+            const finalUrl = url.startsWith('http://') || url.startsWith('https://') 
+                ? url 
+                : getSafeImageSource(url, null, '')
+            
+            if (!finalUrl || finalUrl === '') {
+                throw new Error('No se pudo obtener la URL de la imagen')
+            }
+            
+            // Set the uploaded URL but keep preview until we confirm it loads
+            setImageUrls({ ...imageUrls, [imageKey]: finalUrl })
             toast.success('Imagen subida exitosamente')
+            
+            // Don't clear preview immediately - let the onLoad handler do it
         } catch (error) {
             console.error('Error uploading image:', error)
             const errorMessage = error.message || 'Error al subir la imagen. Intenta de nuevo.'
             toast.error(errorMessage)
+            // Clear preview on error
+            if (imagePreviews[imageKey]) {
+                try {
+                    URL.revokeObjectURL(imagePreviews[imageKey])
+                } catch (e) {
+                    // Ignore errors when revoking
+                }
+            }
+            setImagePreviews({ ...imagePreviews, [imageKey]: null })
             
             // If authentication error, redirect to login
             if (errorMessage.includes('iniciar sesión') || errorMessage.includes('autenticado')) {
@@ -103,8 +156,24 @@ export default function StoreAddProduct() {
         }
     }
 
+    const handleEditorClose = () => {
+        setEditorOpen(false)
+        setEditorFile(null)
+        setEditorImageKey(null)
+    }
+
     const removeImage = (imageKey) => {
         setImageUrls({ ...imageUrls, [imageKey]: '' })
+        // Clean up preview URL if exists
+        if (imagePreviews[imageKey]) {
+            try {
+                URL.revokeObjectURL(imagePreviews[imageKey])
+            } catch (e) {
+                // Ignore errors when revoking
+            }
+            setImagePreviews({ ...imagePreviews, [imageKey]: null })
+        }
+        setImageErrors({ ...imageErrors, [imageKey]: false })
         if (fileInputRefs[imageKey].current) {
             fileInputRefs[imageKey].current.value = ''
         }
@@ -115,7 +184,7 @@ export default function StoreAddProduct() {
     }
 
     const addVariant = () => {
-        setVariants([...variants, { name: '', price: 0, mrp: 0, quantity: '', unit: '' }])
+        setVariants([...variants, { name: '', price: 0, mrp: 0 }])
     }
 
     const removeVariant = (index) => {
@@ -133,7 +202,32 @@ export default function StoreAddProduct() {
         setLoading(true)
 
         try {
-            const productImages = Object.values(imageUrls).filter(url => url !== '')
+            // Filter out empty URLs and normalize them - ensure full Supabase URLs
+            // Get all image URLs - ensure they're full Supabase URLs
+            // Skip blob/data URLs (previews) - only use uploaded URLs
+            const productImages = Object.values(imageUrls)
+                .filter(url => url && typeof url === 'string' && url.trim() !== '')
+                .filter(url => !url.startsWith('blob:') && !url.startsWith('data:'))
+                .map(url => {
+                    // If it's already a full Supabase URL, use it as-is
+                    if (url.startsWith('http://') || url.startsWith('https://')) {
+                        return url
+                    }
+                    // Otherwise normalize it to get full URL
+                    const normalized = getSafeImageSource(url, null, '')
+                    return normalized && normalized !== '' ? normalized : null
+                })
+                .filter(url => url !== null && url !== '')
+                .map(url => {
+                    // If it's already a full Supabase URL, use it as-is
+                    if (url.startsWith('http://') || url.startsWith('https://')) {
+                        return url
+                    }
+                    // Otherwise normalize it
+                    return getSafeImageSource(url, null, '')
+                })
+                .filter(url => url && url !== '')
+            
             if (productImages.length === 0) {
                 toast.error('Por favor sube al menos una imagen')
                 setLoading(false)
@@ -181,8 +275,6 @@ export default function StoreAddProduct() {
                     name: v.name.trim(),
                     price: parseFloat(v.price) || 0,
                     mrp: parseFloat(v.mrp) || parseFloat(v.price) || 0,
-                    quantity: v.quantity ? parseFloat(v.quantity) : null,
-                    unit: v.unit || null,
                 })).filter(v => v.name && v.price > 0)
                 : []
 
@@ -212,8 +304,6 @@ export default function StoreAddProduct() {
                 images: productImages.length > 0 ? productImages : [], // Ensure it's an array
                 in_stock: true,
                 variants: productVariants.length > 0 ? productVariants : [], // Use empty array instead of null
-                quantity: productInfo.quantity ? parseFloat(productInfo.quantity) : null,
-                unit: productInfo.unit || null,
             }
 
             // Validate required fields
@@ -242,8 +332,6 @@ export default function StoreAddProduct() {
                 price: 0,
                 category: "",
                 customCategory: "",
-                quantity: "",
-                unit: "",
             })
             setImageUrls({ 1: '', 2: '', 3: '', 4: '' })
             setShowCustomCategory(false)
@@ -283,7 +371,14 @@ export default function StoreAddProduct() {
     }
 
     return (
-        <form onSubmit={e => toast.promise(onSubmitHandler(e), { loading: "Agregando producto...", success: "Producto agregado", error: "Error al agregar" })} className="text-[#1A1A1A]/70 mb-28">
+        <>
+            <ImageEditor
+                isOpen={editorOpen}
+                imageFile={editorFile}
+                onSave={handleEditorSave}
+                onClose={handleEditorClose}
+            />
+            <form onSubmit={e => toast.promise(onSubmitHandler(e), { loading: "Agregando producto...", success: "Producto agregado", error: "Error al agregar" })} className="text-[#1A1A1A]/70 mb-28">
             <h1 className="text-2xl">Agregar Nuevo <span className="text-[#1A1A1A] font-bold">Producto</span></h1>
             <p className="mt-7 text-[#1A1A1A]/80 font-medium">Imágenes del Producto</p>
 
@@ -302,14 +397,90 @@ export default function StoreAddProduct() {
                             htmlFor={`image-upload-${key}`}
                             className="relative block cursor-pointer group"
                         >
-                            {imageUrls[key] ? (
+                            {(imagePreviews[key] || imageUrls[key]) ? (
                                 <div className="relative">
                                     <Image 
                                         width={150} 
                                         height={150} 
                                         className='h-32 w-32 object-cover border-2 border-[#00C6A2]/30 rounded-2xl transition-all bg-white/50' 
-                                        src={imageUrls[key]} 
+                                        src={(() => {
+                                            const displayUrl = imagePreviews[key] || imageUrls[key]
+                                            if (!displayUrl) return ''
+                                            
+                                            // If it's a preview (blob URL), use it directly
+                                            if (displayUrl.startsWith('blob:') || displayUrl.startsWith('data:')) {
+                                                return displayUrl
+                                            }
+                                            
+                                            // It's a URL - ensure it's a full URL
+                                            if (displayUrl.startsWith('http://') || displayUrl.startsWith('https://')) {
+                                                return displayUrl
+                                            }
+                                            
+                                            // Normalize it
+                                            return getSafeImageSource(displayUrl, null, '') || displayUrl
+                                        })()}
                                         alt={`Producto imagen ${key}`}
+                                        onLoad={() => {
+                                            // If uploaded URL loads successfully, clear preview
+                                            const currentSrc = imagePreviews[key] || imageUrls[key]
+                                            if (imageUrls[key] && imagePreviews[key] && currentSrc === imageUrls[key]) {
+                                                try {
+                                                    URL.revokeObjectURL(imagePreviews[key])
+                                                } catch (e) {
+                                                    // Ignore errors when revoking
+                                                }
+                                                setImagePreviews(prev => ({ ...prev, [key]: null }))
+                                            }
+                                        }}
+                                        onError={(e) => {
+                                            // Prevent infinite loop: only handle error once using dataset flag
+                                            if (e.currentTarget.dataset.fallbackApplied) return
+                                            
+                                            // Capture current values from the event target (more reliable)
+                                            const currentSrc = e.currentTarget.src || ''
+                                            const hasPreview = !!imagePreviews[key]
+                                            const hasUrl = !!imageUrls[key]
+                                            const PLACEHOLDER_PATH = '/img/placeholder-product.svg'
+                                            
+                                            // Only handle error if we don't have a preview to fall back to
+                                            if (!hasPreview && !imageErrors[key]) {
+                                                e.currentTarget.dataset.fallbackApplied = '1'
+                                                
+                                                // Only log if we have meaningful information
+                                                // Use a more concise log to reduce console noise
+                                                if (process.env.NODE_ENV !== 'production' && currentSrc) {
+                                                    const isSupabaseUrl = currentSrc.includes('supabase.co')
+                                                    
+                                                    if (isSupabaseUrl) {
+                                                        // Extract filename from URL for easier debugging
+                                                        const urlParts = currentSrc.split('/')
+                                                        const fileName = urlParts[urlParts.length - 1] || 'unknown'
+                                                        console.warn(`⚠️ Image failed: ${fileName} (slot ${key}) - Using placeholder`)
+                                                    } else {
+                                                        console.error('Add product image failed to load:', {
+                                                            imageKey: key,
+                                                            attemptedSrc: currentSrc
+                                                        })
+                                                    }
+                                                }
+                                                
+                                                setImageErrors({ ...imageErrors, [key]: true })
+                                                // Update src to placeholder only if not already set
+                                                if (currentSrc !== PLACEHOLDER_PATH && !currentSrc.includes('placeholder-product')) {
+                                                    e.currentTarget.src = PLACEHOLDER_PATH
+                                                }
+                                            } else if (hasPreview && hasUrl) {
+                                                // If we have both preview and uploaded URL, and uploaded URL fails,
+                                                // just log it but don't show error (keep showing preview)
+                                                if (process.env.NODE_ENV !== 'production' && currentSrc) {
+                                                    console.warn('Uploaded URL failed, keeping preview:', {
+                                                        imageKey: key,
+                                                        failedUrl: currentSrc
+                                                    })
+                                                }
+                                            }
+                                        }}
                                     />
                                     <button
                                         type="button"
@@ -377,8 +548,8 @@ export default function StoreAddProduct() {
                             </button>
                         </div>
                         {variants.map((variant, index) => (
-                            <div key={index} className="flex gap-3 items-end p-4 bg-white/50 border border-[#00C6A2]/20 rounded-xl flex-wrap">
-                                <div className="flex-1 min-w-[200px]">
+                            <div key={index} className="flex gap-3 items-end p-4 bg-white/50 border border-[#00C6A2]/20 rounded-xl">
+                                <div className="flex-1">
                                     <label className="text-sm text-[#1A1A1A]/70 mb-1 block">Nombre de la opción</label>
                                     <input
                                         type="text"
@@ -387,30 +558,6 @@ export default function StoreAddProduct() {
                                         placeholder="Ej: 1g, Media oz, Una oz"
                                         className="w-full p-2 px-3 outline-none border border-[#00C6A2]/20 rounded-lg focus:border-[#00C6A2] focus:ring-2 focus:ring-[#00C6A2]/20 transition-all"
                                     />
-                                </div>
-                                <div className="w-32">
-                                    <label className="text-sm text-[#1A1A1A]/70 mb-1 block">Cantidad</label>
-                                    <input
-                                        type="number"
-                                        step="0.1"
-                                        min="0"
-                                        value={variant.quantity || ''}
-                                        onChange={(e) => updateVariant(index, 'quantity', e.target.value)}
-                                        placeholder="Ej: 1, 3.5"
-                                        className="w-full p-2 px-3 outline-none border border-[#00C6A2]/20 rounded-lg focus:border-[#00C6A2] focus:ring-2 focus:ring-[#00C6A2]/20 transition-all"
-                                    />
-                                </div>
-                                <div className="w-28">
-                                    <label className="text-sm text-[#1A1A1A]/70 mb-1 block">Unidad</label>
-                                    <select
-                                        value={variant.unit || ''}
-                                        onChange={(e) => updateVariant(index, 'unit', e.target.value)}
-                                        className="w-full p-2 px-3 outline-none border border-[#00C6A2]/20 rounded-lg focus:border-[#00C6A2] focus:ring-2 focus:ring-[#00C6A2]/20 transition-all"
-                                    >
-                                        <option value="">-</option>
-                                        <option value="g">g</option>
-                                        <option value="ml">ml</option>
-                                    </select>
                                 </div>
                                 <div className="w-32">
                                     <label className="text-sm text-[#1A1A1A]/70 mb-1 block">Precio</label>
@@ -489,39 +636,10 @@ export default function StoreAddProduct() {
                 )}
             </label>
 
-            {/* Quantity and Unit */}
-            <div className="flex gap-5 flex-wrap my-6">
-                <label htmlFor="" className="flex flex-col gap-2">
-                    <span className="text-[#1A1A1A]/80 font-medium">Cantidad <span className="text-[#1A1A1A]/40 text-sm font-normal">(Opcional)</span></span>
-                    <input 
-                        type="number" 
-                        name="quantity" 
-                        onChange={onChangeHandler} 
-                        value={productInfo.quantity} 
-                        placeholder="Ej: 1, 3.5, 10" 
-                        step="0.1"
-                        min="0"
-                        className="w-full max-w-48 p-3 px-4 outline-none border border-[#00C6A2]/20 rounded-xl focus:border-[#00C6A2] focus:ring-2 focus:ring-[#00C6A2]/20 transition-all" 
-                    />
-                </label>
-                <label htmlFor="" className="flex flex-col gap-2">
-                    <span className="text-[#1A1A1A]/80 font-medium">Unidad <span className="text-[#1A1A1A]/40 text-sm font-normal">(Opcional)</span></span>
-                    <select 
-                        name="unit" 
-                        onChange={onChangeHandler} 
-                        value={productInfo.unit} 
-                        className="w-full max-w-48 p-3 px-4 outline-none border border-[#00C6A2]/20 rounded-xl focus:border-[#00C6A2] focus:ring-2 focus:ring-[#00C6A2]/20 transition-all"
-                    >
-                        <option value="">Selecciona unidad</option>
-                        <option value="g">Gramos (g)</option>
-                        <option value="ml">Mililitros (ml)</option>
-                    </select>
-                </label>
-            </div>
-
             <br />
 
             <button disabled={loading} className="bg-[#00C6A2] hover:bg-[#00B894] text-white px-8 mt-7 py-3 rounded-full font-semibold transition-all hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed">Agregar Producto</button>
         </form>
+        </>
     )
 }

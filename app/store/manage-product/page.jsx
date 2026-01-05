@@ -5,6 +5,7 @@ import Image from "next/image"
 import Loading from "@/components/Loading"
 import { getProducts, updateProduct } from "@/lib/supabase/database"
 import { getCurrentUser } from "@/lib/supabase/auth"
+import { getSafeImageSource } from "@/lib/utils/image"
 
 export default function StoreManageProducts() {
 
@@ -12,6 +13,8 @@ export default function StoreManageProducts() {
 
     const [loading, setLoading] = useState(true)
     const [products, setProducts] = useState([])
+    // FIX: Track image errors per product
+    const [thumbnailErrors, setThumbnailErrors] = useState({})
 
     const fetchProducts = async () => {
         try {
@@ -79,9 +82,44 @@ export default function StoreManageProducts() {
                         <tr key={product.id} className="border-t border-gray-200 hover:bg-gray-50">
                             <td className="px-4 py-3">
                                 <div className="flex gap-2 items-center">
-                                    {product.images && product.images.length > 0 ? (
-                                        <Image width={40} height={40} className='p-1 shadow rounded cursor-pointer' src={product.images[0]} alt={product.name} />
-                                    ) : (
+                                    {product.images && product.images.length > 0 ? (() => {
+                                        const imageUrl = getSafeImageSource(product.images[0], product.id)
+                                        const hasError = thumbnailErrors[product.id] || false
+                                        
+                                        return hasError ? (
+                                            <div className="w-10 h-10 bg-red-50 border border-red-200 rounded flex items-center justify-center">
+                                                <span className="text-xs text-red-600">Error</span>
+                                            </div>
+                                        ) : (
+                                            <Image 
+                                                width={40} 
+                                                height={40}
+                                                className='p-1 shadow rounded cursor-pointer' 
+                                                src={imageUrl}
+                                                alt={product.name}
+                                                onLoad={() => {
+                                                    // FIX: Reset error on successful load
+                                                    if (thumbnailErrors[product.id]) {
+                                                        setThumbnailErrors(prev => {
+                                                            const updated = { ...prev }
+                                                            delete updated[product.id]
+                                                            return updated
+                                                        })
+                                                    }
+                                                }}
+                                                onError={(e) => {
+                                                    // FIX: Show error when image fails to load - no placeholder fallback
+                                                    if (imageUrl && !thumbnailErrors[product.id] && e?.currentTarget) {
+                                                        const currentSrc = e.currentTarget.src || ''
+                                                        if (currentSrc.includes(imageUrl) || currentSrc === imageUrl) {
+                                                            setThumbnailErrors(prev => ({ ...prev, [product.id]: true }))
+                                                            toast.error(`Error al cargar imagen: ${product.name}`)
+                                                        }
+                                                    }
+                                                }}
+                                            />
+                                        )
+                                    })() : (
                                         <div className="w-10 h-10 bg-slate-200 rounded flex items-center justify-center">
                                             <span className="text-xs text-slate-400">Sin img</span>
                                         </div>
