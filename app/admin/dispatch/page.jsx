@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { MapPin, ExternalLink, Copy, Check } from 'lucide-react'
+import { MapPin, ExternalLink, Copy, Check, Trash2 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import Loading from '@/components/Loading'
 import { getCurrentUser } from '@/lib/supabase/auth'
@@ -99,6 +99,58 @@ export default function OrderDispatch() {
         }
     }
 
+    const handleDeleteOrder = async (orderId) => {
+        if (!confirm('¿Estás seguro de que deseas eliminar este pedido? Esta acción no se puede deshacer.')) {
+            return
+        }
+
+        try {
+            const { user } = await getCurrentUser()
+            if (!user) {
+                toast.error('Debes estar autenticado')
+                return
+            }
+
+            // Get session token for API call
+            const { createClient } = await import('@supabase/supabase-js')
+            const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+            const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+            
+            if (!supabaseUrl || !supabaseAnonKey) {
+                toast.error('Error de configuración')
+                return
+            }
+
+            const supabase = createClient(supabaseUrl, supabaseAnonKey)
+            const { data: { session } } = await supabase.auth.getSession()
+            
+            if (!session?.access_token) {
+                toast.error('Error de autenticación')
+                return
+            }
+
+            const response = await fetch(`/api/orders/${orderId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${session.access_token}`,
+                    'Content-Type': 'application/json',
+                },
+            })
+
+            const data = await response.json()
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Error al eliminar el pedido')
+            }
+
+            toast.success('Pedido eliminado correctamente')
+            fetchOrders()
+        } catch (error) {
+            console.error('Error deleting order:', error)
+            toast.error(error.message || 'Error al eliminar el pedido')
+        }
+    }
+
     if (loading) return <Loading />
 
     const pendingOrders = orders.filter(o => o.fulfillment_type === 'courierExterno' && o.dispatch_status === 'pending')
@@ -188,6 +240,13 @@ export default function OrderDispatch() {
                                                     className="flex items-center gap-2 px-4 py-2 bg-[#00C6A2] text-white rounded-lg hover:bg-[#00B894] transition-colors"
                                                 >
                                                     Marcar como Despachado
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteOrder(order.id)}
+                                                    className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                                                >
+                                                    <Trash2 size={16} />
+                                                    Eliminar Pedido
                                                 </button>
                                             </div>
                                         </div>

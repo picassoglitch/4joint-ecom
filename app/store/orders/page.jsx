@@ -5,6 +5,7 @@ import { getOrders, updateOrderStatus } from "@/lib/supabase/database"
 import { getCurrentUser } from "@/lib/supabase/auth"
 import toast from "react-hot-toast"
 import { getSafeImageSource } from "@/lib/utils/image"
+import { Trash2 } from "lucide-react"
 
 export default function StoreOrders() {
     const [orders, setOrders] = useState([])
@@ -96,6 +97,65 @@ export default function StoreOrders() {
         }
     }
 
+    const handleDeleteOrder = async (orderId) => {
+        if (!confirm('¿Estás seguro de que deseas eliminar este pedido? Esta acción no se puede deshacer.')) {
+            return
+        }
+
+        try {
+            const { user } = await getCurrentUser()
+            if (!user) {
+                toast.error('Debes estar autenticado')
+                return
+            }
+
+            // Get session token for API call
+            const { createClient } = await import('@supabase/supabase-js')
+            const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+            const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+            
+            if (!supabaseUrl || !supabaseAnonKey) {
+                toast.error('Error de configuración')
+                return
+            }
+
+            const supabase = createClient(supabaseUrl, supabaseAnonKey)
+            const { data: { session } } = await supabase.auth.getSession()
+            
+            if (!session?.access_token) {
+                toast.error('Error de autenticación')
+                return
+            }
+
+            const response = await fetch(`/api/orders/${orderId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${session.access_token}`,
+                    'Content-Type': 'application/json',
+                },
+            })
+
+            const data = await response.json()
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Error al eliminar el pedido')
+            }
+
+            toast.success('Pedido eliminado correctamente')
+            
+            // Remove order from local state
+            setOrders(orders.filter(order => order.id !== orderId))
+            
+            // Close modal if deleted order was selected
+            if (selectedOrder && selectedOrder.id === orderId) {
+                closeModal()
+            }
+        } catch (error) {
+            console.error('Error deleting order:', error)
+            toast.error(error.message || 'Error al eliminar el pedido')
+        }
+    }
+
     const openModal = (order) => {
         setSelectedOrder(order)
         setIsModalOpen(true)
@@ -126,7 +186,7 @@ export default function StoreOrders() {
                     <table className="w-full text-sm text-left text-[#1A1A1A]/80">
                         <thead className="bg-gradient-to-r from-[#00C6A2]/10 to-[#FFD95E]/10 text-[#1A1A1A] text-xs uppercase tracking-wider">
                             <tr>
-                                {["#", "Cliente", "Total", "Pago", "Cupón", "Estado", "Fecha"].map((heading, i) => (
+                                {["#", "Cliente", "Total", "Pago", "Cupón", "Estado", "Fecha", "Acciones"].map((heading, i) => (
                                     <th key={i} className="px-4 py-4 font-semibold">{heading}</th>
                                 ))}
                             </tr>
@@ -171,6 +231,15 @@ export default function StoreOrders() {
                                     </td>
                                     <td className="px-4 py-4 text-[#1A1A1A]/60">
                                         {new Date(order.createdAt).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                    </td>
+                                    <td className="px-4 py-4" onClick={(e) => { e.stopPropagation() }}>
+                                        <button
+                                            onClick={() => handleDeleteOrder(order.id)}
+                                            className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                                            title="Eliminar pedido"
+                                        >
+                                            <Trash2 size={18} />
+                                        </button>
                                     </td>
                                 </tr>
                             ))}
@@ -262,25 +331,34 @@ export default function StoreOrders() {
                         </div>
 
                         {/* Actions */}
-                        <div className="flex justify-end gap-3">
-                            {selectedOrder.status === 'ORDER_PLACED' && selectedOrder.isPaid && (
-                                <button 
-                                    onClick={async () => {
-                                        try {
-                                            await handleUpdateOrderStatus(selectedOrder.id, 'PROCESSING')
-                                            toast.success('Pedido aprobado y en proceso')
-                                        } catch (error) {
-                                            // Error already handled in handleUpdateOrderStatus
-                                        }
-                                    }}
-                                    className="px-8 py-3 bg-[#FFD95E] hover:bg-[#FFD044] text-[#1A1A1A] rounded-full font-semibold transition-all hover:scale-105 active:scale-95 shadow-lg"
-                                >
-                                    Aprobar Pedido
-                                </button>
-                            )}
-                            <button onClick={closeModal} className="px-8 py-3 bg-[#00C6A2] hover:bg-[#00B894] text-white rounded-full font-semibold transition-all hover:scale-105 active:scale-95 shadow-lg" >
-                                Cerrar
+                        <div className="flex justify-between items-center gap-3">
+                            <button
+                                onClick={() => handleDeleteOrder(selectedOrder.id)}
+                                className="px-6 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-full font-semibold transition-all hover:scale-105 active:scale-95 shadow-lg flex items-center gap-2"
+                            >
+                                <Trash2 size={18} />
+                                Eliminar Pedido
                             </button>
+                            <div className="flex gap-3">
+                                {selectedOrder.status === 'ORDER_PLACED' && selectedOrder.isPaid && (
+                                    <button 
+                                        onClick={async () => {
+                                            try {
+                                                await handleUpdateOrderStatus(selectedOrder.id, 'PROCESSING')
+                                                toast.success('Pedido aprobado y en proceso')
+                                            } catch (error) {
+                                                // Error already handled in handleUpdateOrderStatus
+                                            }
+                                        }}
+                                        className="px-8 py-3 bg-[#FFD95E] hover:bg-[#FFD044] text-[#1A1A1A] rounded-full font-semibold transition-all hover:scale-105 active:scale-95 shadow-lg"
+                                    >
+                                        Aprobar Pedido
+                                    </button>
+                                )}
+                                <button onClick={closeModal} className="px-8 py-3 bg-[#00C6A2] hover:bg-[#00B894] text-white rounded-full font-semibold transition-all hover:scale-105 active:scale-95 shadow-lg" >
+                                    Cerrar
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
