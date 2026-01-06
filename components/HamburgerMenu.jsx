@@ -36,16 +36,16 @@ export default function HamburgerMenu({ isOpen, onClose }) {
         <>
             {/* Backdrop */}
             <div 
-                className={`fixed inset-0 bg-black/50 z-40 transition-opacity duration-300 ${
+                className={`fixed inset-0 bg-black/50 z-[110] transition-opacity duration-300 ${
                     isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
                 }`}
                 onClick={onClose}
             />
             
             {/* Slide-in menu */}
-            <div className={`fixed left-0 top-0 bottom-0 w-80 max-w-[85vw] bg-white z-50 shadow-2xl transform transition-transform duration-300 ease-out overflow-y-auto ${
+            <div className={`fixed left-0 top-0 bottom-0 w-80 max-w-[85vw] bg-white z-[120] shadow-2xl transform transition-transform duration-300 ease-out overflow-y-auto ${
                 isOpen ? 'translate-x-0' : '-translate-x-full'
-            }`}>
+            }`} style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
                 <div className="p-4 border-b border-slate-200 flex items-center justify-between">
                     <h2 className="text-lg font-bold text-[#1A1A1A]">Menú</h2>
                     <button
