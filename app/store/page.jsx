@@ -103,17 +103,20 @@ export default function Dashboard() {
                             .from('order_items')
                             .select(`
                                 quantity,
-                                product:products (
-                                    id,
-                                    provider_cost
-                                )
+                                variant
                             `)
                             .in('order_id', orderIds)
                         
                         if (!itemsError && orderItems) {
-                            // Calculate total provider cost
+                            // Calculate total provider cost from variants
+                            // For GreenBoy, provider_cost is stored in each variant
                             totalProviderCost = orderItems.reduce((sum, item) => {
-                                const providerCost = parseFloat(item.product?.provider_cost || 0)
+                                const variant = typeof item.variant === 'string' 
+                                    ? JSON.parse(item.variant) 
+                                    : item.variant
+                                
+                                // Get provider_cost from variant (for GreenBoy) or default to 0
+                                const providerCost = parseFloat(variant?.provider_cost || 0)
                                 const quantity = parseInt(item.quantity || 1)
                                 return sum + (providerCost * quantity)
                             }, 0)

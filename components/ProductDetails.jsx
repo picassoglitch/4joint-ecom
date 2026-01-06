@@ -64,6 +64,7 @@ const ProductDetails = ({ product }) => {
             variant: selectedVariant ? {
                 name: selectedVariant.name,
                 price: selectedVariant.price,
+                provider_cost: selectedVariant.provider_cost || 0, // Include provider_cost for GreenBoy calculations
             } : null
         }
         dispatch(addToCart(cartItem))

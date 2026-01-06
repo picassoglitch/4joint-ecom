@@ -66,7 +66,6 @@ export default function StoreEditProduct() {
     const [useVariants, setUseVariants] = useState(false)
     const [showCustomCategory, setShowCustomCategory] = useState(false)
     const [isGreenBoy, setIsGreenBoy] = useState(false)
-    const [providerCost, setProviderCost] = useState(0)
     
     // GreenBoy Store ID
     const GREENBOY_STORE_ID = 'f64fcf18-037f-47d8-b58a-9365cb62caf2'
@@ -114,11 +113,6 @@ export default function StoreEditProduct() {
                     category: product.category || "",
                     customCategory: product.category && !categories.includes(product.category) ? product.category : "",
                 })
-                
-                // Load provider_cost for GreenBoy
-                if (vendor && vendor.id === GREENBOY_STORE_ID) {
-                    setProviderCost(parseFloat(product.provider_cost || 0))
-                }
 
                 // Set images - normalize URLs from DB
                 // Ensure we store full Supabase URLs for proper retrieval
@@ -161,7 +155,12 @@ export default function StoreEditProduct() {
 
                 // Set variants
                 if (product.variants && Array.isArray(product.variants) && product.variants.length > 0) {
-                    setVariants(product.variants)
+                    // Ensure each variant has provider_cost for GreenBoy
+                    const variantsWithProviderCost = product.variants.map(v => ({
+                        ...v,
+                        provider_cost: v.provider_cost || 0
+                    }))
+                    setVariants(variantsWithProviderCost)
                     setUseVariants(true)
                 }
 
@@ -354,7 +353,7 @@ export default function StoreEditProduct() {
     }, [])
 
     const addVariant = () => {
-        setVariants([...variants, { name: '', price: 0, mrp: 0 }])
+        setVariants([...variants, { name: '', price: 0, mrp: 0, provider_cost: 0 }])
     }
 
     const removeVariant = (index) => {
@@ -438,11 +437,6 @@ export default function StoreEditProduct() {
                 images: images,
                 in_stock: true,
             }
-            
-            // Add provider_cost for GreenBoy
-            if (isGreenBoy) {
-                productData.provider_cost = parseFloat(providerCost) || 0
-            }
 
             // Handle variants
             if (useVariants && variants.length > 0) {
@@ -454,11 +448,18 @@ export default function StoreEditProduct() {
                     return
                 }
 
-                productData.variants = validVariants.map(v => ({
-                    name: v.name.trim(),
-                    price: parseFloat(v.price),
-                    mrp: parseFloat(v.mrp) || parseFloat(v.price),
-                }))
+                productData.variants = validVariants.map(v => {
+                    const variantData = {
+                        name: v.name.trim(),
+                        price: parseFloat(v.price),
+                        mrp: parseFloat(v.mrp) || parseFloat(v.price),
+                    }
+                    // Add provider_cost for GreenBoy variants
+                    if (isGreenBoy) {
+                        variantData.provider_cost = parseFloat(v.provider_cost || 0)
+                    }
+                    return variantData
+                })
 
                 // Set price to minimum variant price
                 const minPrice = Math.min(...productData.variants.map(v => v.price))
@@ -784,7 +785,7 @@ export default function StoreEditProduct() {
                     {useVariants ? (
                         <div className="space-y-3 mt-3">
                             {variants.map((variant, index) => (
-                                <div key={index} className="flex gap-2 items-end">
+                                <div key={index} className={`flex gap-2 items-end ${isGreenBoy ? 'flex-wrap' : ''}`}>
                                     <div className="flex-1">
                                         <label className="block text-xs text-slate-600 mb-1">Nombre (ej: 1g, Media oz)</label>
                                         <input
@@ -817,6 +818,20 @@ export default function StoreEditProduct() {
                                             className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
                                         />
                                     </div>
+                                    {isGreenBoy && (
+                                        <div className="flex-1">
+                                            <label className="block text-xs text-slate-600 mb-1">Costo de Proveedor (MXN) *</label>
+                                            <input
+                                                type="number"
+                                                value={variant.provider_cost || 0}
+                                                onChange={(e) => updateVariant(index, 'provider_cost', parseFloat(e.target.value) || 0)}
+                                                min="0"
+                                                step="0.01"
+                                                className="w-full px-3 py-2 border border-blue-300 rounded-lg text-sm bg-blue-50"
+                                                required
+                                            />
+                                        </div>
+                                    )}
                                     <button
                                         type="button"
                                         onClick={() => removeVariant(index)}
@@ -866,26 +881,6 @@ export default function StoreEditProduct() {
                     )}
                 </div>
 
-                {/* Provider Cost - Only for GreenBoy */}
-                {isGreenBoy && (
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                        <label className="block text-sm font-medium text-slate-700 mb-2">
-                            Costo de Proveedor (MXN) *
-                            <span className="text-xs text-slate-500 ml-2 block mt-1">
-                                Este costo se usa para calcular las ganancias (50/50 split después de descontar el costo)
-                            </span>
-                        </label>
-                        <input
-                            type="number"
-                            value={providerCost}
-                            onChange={(e) => setProviderCost(parseFloat(e.target.value) || 0)}
-                            min="0"
-                            step="0.01"
-                            className="w-full px-4 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            required
-                        />
-                    </div>
-                )}
 
                 {/* Submit */}
                 <div className="flex gap-4">
