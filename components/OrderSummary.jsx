@@ -859,11 +859,15 @@ const OrderSummary = ({ totalPrice, items }) => {
                         }),
                     });
 
+                    const responseData = await response.json();
+
                     if (!response.ok) {
-                        throw new Error('Error al crear la preferencia de pago');
+                        const errorMessage = responseData.error || responseData.message || 'Error al crear la preferencia de pago';
+                        console.error('Mercado Pago API error:', responseData);
+                        throw new Error(errorMessage);
                     }
 
-                    const { init_point, sandbox_init_point } = await response.json();
+                    const { init_point, sandbox_init_point } = responseData;
                     
                     // Redirect to Mercado Pago checkout
                     // Use init_point for production, sandbox_init_point only for testing
@@ -871,7 +875,8 @@ const OrderSummary = ({ totalPrice, items }) => {
                     window.location.href = init_point || sandbox_init_point;
                 } catch (error) {
                     console.error('Error creating Mercado Pago preference:', error);
-                    toast.error('Error al procesar el pago. Intenta de nuevo.');
+                    const errorMessage = error?.message || 'Error al procesar el pago. Intenta de nuevo.';
+                    toast.error(errorMessage);
                     setProcessingPayment(false);
                     setIsPlacingOrder(false);
                 }
