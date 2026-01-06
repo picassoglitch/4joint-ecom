@@ -632,12 +632,7 @@ const OrderSummary = ({ totalPrice, items }) => {
                 }
             }
 
-            // Calculate courier cost if applicable
-            let courierCost = 0;
-            if (fulfillmentType === 'courierExterno' && storeInfo && !storeInfo.courier_cost_included) {
-                courierCost = storeInfo.courier_cost || 0;
-            }
-
+            // courierCost is already calculated above (line 605)
             const orderData = {
                 vendor_id: vendorId,
                 total: finalTotal + courierCost, // Add courier cost to total if not included
