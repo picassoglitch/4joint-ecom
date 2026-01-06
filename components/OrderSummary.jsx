@@ -163,10 +163,36 @@ const OrderSummary = ({ totalPrice, items }) => {
                     setGuestEmail(currentUser.email || '');
                     setGuestName(currentUser.user_metadata?.full_name || currentUser.email || '');
                     
-                    // Clear sessionStorage when user logs in
+                    // Clear sessionStorage when user logs in and migrate guest addresses
                     if (typeof window !== 'undefined') {
                         sessionStorage.removeItem('guest_checkout_address');
                         sessionStorage.removeItem('guest_checkout_info');
+                        // Try to migrate guest addresses to user account
+                        const guestAddresses = JSON.parse(localStorage.getItem('guest_addresses') || '[]');
+                        if (guestAddresses.length > 0) {
+                            // Attempt to save guest addresses to user account
+                            guestAddresses.forEach(async (guestAddr) => {
+                                try {
+                                    const { saveAddress } = await import('@/lib/supabase/addresses');
+                                    await saveAddress({
+                                        name: guestAddr.name,
+                                        email: guestAddr.email,
+                                        street: guestAddr.street,
+                                        city: guestAddr.city,
+                                        state: guestAddr.state,
+                                        zip: guestAddr.zip,
+                                        country: guestAddr.country || 'México',
+                                        phone: guestAddr.phone,
+                                        references: guestAddr.references,
+                                        is_default: false,
+                                    });
+                                } catch (error) {
+                                    console.warn('Could not migrate guest address to user account:', error);
+                                }
+                            });
+                            // Clear guest addresses after migration attempt
+                            localStorage.removeItem('guest_addresses');
+                        }
                     }
                     
                     // Load saved addresses (only if addresses table exists and user has valid ID)
@@ -230,6 +256,50 @@ const OrderSummary = ({ totalPrice, items }) => {
                         setIsEligibleForFreeGram(false);
                     }
                 } else {
+                    // User is not logged in - load guest addresses from localStorage
+                    if (typeof window !== 'undefined') {
+                        try {
+                            const guestAddresses = JSON.parse(localStorage.getItem('guest_addresses') || '[]');
+                            if (guestAddresses && guestAddresses.length > 0) {
+                                // Load guest addresses into Redux store
+                                guestAddresses.forEach(addr => {
+                                    dispatch(addAddress({
+                                        id: addr.id,
+                                        name: addr.name,
+                                        email: addr.email,
+                                        street: addr.street,
+                                        city: addr.city,
+                                        state: addr.state,
+                                        zip: addr.zip,
+                                        country: addr.country || 'México',
+                                        phone: addr.phone,
+                                        address: addr.street,
+                                        is_guest: true,
+                                    }));
+                                });
+                                // Auto-select first guest address if available
+                                if (guestAddresses.length > 0 && !selectedAddress) {
+                                    const firstAddr = guestAddresses[0];
+                                    setSelectedAddress({
+                                        id: firstAddr.id,
+                                        name: firstAddr.name,
+                                        email: firstAddr.email,
+                                        street: firstAddr.street,
+                                        city: firstAddr.city,
+                                        state: firstAddr.state,
+                                        zip: firstAddr.zip,
+                                        country: firstAddr.country || 'México',
+                                        phone: firstAddr.phone,
+                                        address: firstAddr.street,
+                                        is_guest: true,
+                                    });
+                                }
+                            }
+                        } catch (error) {
+                            console.error('Error loading guest addresses:', error);
+                        }
+                    }
+                    
                     // Load guest info from sessionStorage if available
                     if (typeof window !== 'undefined') {
                         const savedInfo = sessionStorage.getItem('guest_checkout_info');

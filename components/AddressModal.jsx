@@ -58,50 +58,82 @@ const AddressModal = ({ setShowAddressModal }) => {
             return;
         }
 
-        // Check if user is logged in
-        if (!user) {
-            toast.error('Debes iniciar sesión para guardar direcciones');
-            return;
+        // If user is logged in, try to save to Supabase
+        if (user) {
+            try {
+                const savedAddress = await saveAddress({
+                    ...address,
+                    references: address.references,
+                });
+                
+                if (savedAddress) {
+                    // Add address to Redux store with real ID from Supabase
+                    dispatch(addAddress({
+                        id: savedAddress.id,
+                        name: savedAddress.name,
+                        email: savedAddress.email,
+                        street: savedAddress.street,
+                        city: savedAddress.city,
+                        state: savedAddress.state,
+                        zip: savedAddress.zip,
+                        country: savedAddress.country,
+                        phone: savedAddress.phone,
+                        address: savedAddress.street,
+                    }));
+
+                    toast.success('Dirección guardada exitosamente');
+                    setShowAddressModal(false);
+                    return;
+                } else {
+                    // Fallback to localStorage if Supabase save fails
+                    console.warn('Could not save to Supabase, saving to localStorage instead');
+                }
+            } catch (error) {
+                console.error('Error saving address to Supabase:', error);
+                
+                // Handle specific error cases but don't block - fall through to localStorage save
+                if (error?.isTableNotFound || error?.code === 'PGRST205' || error?.code === '42P01' || error?.message?.includes('does not exist') || error?.message?.includes('Could not find the table')) {
+                    console.warn('Addresses table does not exist. Saving to localStorage instead.');
+                } else {
+                    console.warn('Error saving to Supabase:', error?.message || 'Unknown error. Saving to localStorage instead.');
+                }
+                // Fall through to localStorage save
+            }
         }
 
-        // Save address to Supabase
+        // For non-logged users OR if Supabase save failed, save to localStorage
         try {
-            const savedAddress = await saveAddress({
-                ...address,
+            // Generate a temporary ID for guest addresses
+            const tempId = `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            
+            const guestAddress = {
+                id: tempId,
+                name: address.name,
+                email: address.email,
+                street: address.street,
+                city: address.city,
+                state: address.state,
+                zip: address.zip,
+                country: address.country || 'México',
+                phone: address.phone,
+                address: address.street,
                 references: address.references,
-            });
-            
-            if (!savedAddress) {
-                // No session available - address was not saved
-                toast.error('No se pudo guardar la dirección. Por favor, inicia sesión e intenta de nuevo.');
-                return;
-            }
-            
-            // Add address to Redux store with real ID
-            dispatch(addAddress({
-                id: savedAddress.id,
-                name: savedAddress.name,
-                email: savedAddress.email,
-                street: savedAddress.street,
-                city: savedAddress.city,
-                state: savedAddress.state,
-                zip: savedAddress.zip,
-                country: savedAddress.country,
-                phone: savedAddress.phone,
-                address: savedAddress.street,
-            }));
+                is_guest: true, // Mark as guest address
+            };
+
+            // Save to localStorage
+            const savedGuestAddresses = JSON.parse(localStorage.getItem('guest_addresses') || '[]');
+            savedGuestAddresses.push(guestAddress);
+            localStorage.setItem('guest_addresses', JSON.stringify(savedGuestAddresses));
+
+            // Add address to Redux store
+            dispatch(addAddress(guestAddress));
 
             toast.success('Dirección guardada exitosamente');
             setShowAddressModal(false);
         } catch (error) {
-            console.error('Error saving address:', error);
-            
-            // Handle specific error cases
-            if (error?.isTableNotFound || error?.code === 'PGRST205' || error?.code === '42P01' || error?.message?.includes('does not exist') || error?.message?.includes('Could not find the table')) {
-                toast.error('La tabla de direcciones no existe. Ejecuta la migración migration_addresses.sql en Supabase.');
-            } else {
-                toast.error(error?.message || 'Error al guardar la dirección. Intenta de nuevo.');
-            }
+            console.error('Error saving guest address:', error);
+            toast.error('Error al guardar la dirección. Intenta de nuevo.');
         }
     }
 
