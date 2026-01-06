@@ -56,6 +56,7 @@ export async function GET(request) {
       min_order: data.min_order || 0,
       delivery_notes: data.delivery_notes || '',
       service_colonias: data.service_colonias || [],
+      contact: data.contact || '', // WhatsApp/contacto de la tienda
     })
   } catch (error) {
     console.error('Error in store info API:', error)
