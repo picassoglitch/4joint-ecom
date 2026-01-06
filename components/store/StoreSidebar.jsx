@@ -19,7 +19,15 @@ const StoreSidebar = ({storeInfo}) => {
     return (
         <div className="inline-flex h-full flex-col gap-5 border-r border-slate-200 sm:min-w-60">
             <div className="flex flex-col gap-3 justify-center items-center pt-8 max-sm:hidden">
-                <Image className="w-14 h-14 rounded-full shadow-md" src={storeInfo?.logo} alt="" width={80} height={80} />
+                {storeInfo?.logo && storeInfo.logo.trim() !== '' ? (
+                    <Image className="w-14 h-14 rounded-full shadow-md" src={storeInfo.logo} alt={storeInfo?.name || 'Store logo'} width={80} height={80} />
+                ) : (
+                    <div className="w-14 h-14 rounded-full shadow-md bg-[#00C6A2]/20 flex items-center justify-center">
+                        <span className="text-2xl font-bold text-[#00C6A2]">
+                            {storeInfo?.name?.charAt(0)?.toUpperCase() || 'S'}
+                        </span>
+                    </div>
+                )}
                 <p className="text-slate-700">{storeInfo?.name}</p>
             </div>
 
