@@ -859,11 +859,26 @@ const OrderSummary = ({ totalPrice, items }) => {
                         }),
                     });
 
-                    const responseData = await response.json();
+                    let responseData;
+                    try {
+                        responseData = await response.json();
+                    } catch (parseError) {
+                        console.error('Error parsing Mercado Pago response:', parseError);
+                        const text = await response.text();
+                        console.error('Raw response:', text);
+                        throw new Error('Error al procesar la respuesta de Mercado Pago. Verifica que MERCADOPAGO_ACCESS_TOKEN esté configurado en .env.local');
+                    }
 
                     if (!response.ok) {
-                        const errorMessage = responseData.error || responseData.message || 'Error al crear la preferencia de pago';
-                        console.error('Mercado Pago API error:', responseData);
+                        const errorMessage = responseData?.error || responseData?.message || 'Error al crear la preferencia de pago';
+                        console.error('Mercado Pago API error:', {
+                            status: response.status,
+                            statusText: response.statusText,
+                            error: responseData?.error,
+                            details: responseData?.details,
+                            message: responseData?.message,
+                            fullResponse: responseData
+                        });
                         throw new Error(errorMessage);
                     }
 
@@ -875,7 +890,26 @@ const OrderSummary = ({ totalPrice, items }) => {
                     window.location.href = init_point || sandbox_init_point;
                 } catch (error) {
                     console.error('Error creating Mercado Pago preference:', error);
-                    const errorMessage = error?.message || 'Error al procesar el pago. Intenta de nuevo.';
+                    
+                    // Extract error message more safely
+                    let errorMessage = 'Error al procesar el pago. Intenta de nuevo.';
+                    
+                    if (error?.message) {
+                        errorMessage = error.message;
+                    } else if (typeof error === 'string') {
+                        errorMessage = error;
+                    } else if (error?.error) {
+                        errorMessage = error.error;
+                    } else if (error?.details?.message) {
+                        errorMessage = error.details.message;
+                    }
+                    
+                    // Check if it's a configuration error
+                    if (errorMessage.includes('MERCADOPAGO_ACCESS_TOKEN') || errorMessage.includes('no está configurado')) {
+                        errorMessage = 'Mercado Pago no está configurado. Contacta al administrador.';
+                    }
+                    
+                    console.error('Final error message:', errorMessage);
                     toast.error(errorMessage);
                     setProcessingPayment(false);
                     setIsPlacingOrder(false);
