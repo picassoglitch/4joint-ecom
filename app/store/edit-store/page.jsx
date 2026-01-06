@@ -38,15 +38,13 @@ export default function EditStore() {
         courierCost: 0,
         courierCostIncluded: false,
         requireOrderApproval: false, // Require vendor to approve orders before processing
+        telegramChatId: null,
+        telegramEnabled: false,
+        notificationPrefs: { newOrder: true, lowStock: true, support: true },
     })
     const [logoFile, setLogoFile] = useState(null)
     const [logoPreview, setLogoPreview] = useState("")
     const fileInputRef = useRef(null)
-    const [telegramStatus, setTelegramStatus] = useState({
-        connected: false,
-        chatId: null,
-        enabled: false,
-    })
     const [telegramLoading, setTelegramLoading] = useState(false)
     const [storeId, setStoreId] = useState(null)
 
@@ -99,14 +97,12 @@ export default function EditStore() {
                     courierCost: vendor.courier_cost || 0,
                     courierCostIncluded: vendor.courier_cost_included || false,
                     requireOrderApproval: vendor.require_order_approval || false,
+                    telegramChatId: vendor.telegram_chat_id || null,
+                    telegramEnabled: vendor.telegram_enabled || false,
+                    notificationPrefs: vendor.notification_prefs || { newOrder: true, lowStock: true, support: true },
                 })
                 setLogoPreview(vendor.logo || "")
                 setStoreId(vendor.id)
-                setTelegramStatus({
-                    connected: !!vendor.telegram_chat_id,
-                    chatId: vendor.telegram_chat_id || null,
-                    enabled: vendor.telegram_enabled || false,
-                })
             } else {
                 toast.error('No tienes una tienda registrada. Por favor regístrate primero.')
             }
@@ -138,108 +134,25 @@ export default function EditStore() {
         setStoreInfo({ ...storeInfo, [e.target.name]: e.target.value })
     }
 
-    const handleConnectTelegram = async () => {
-        if (!storeId) {
-            toast.error('No se pudo identificar la tienda. Por favor recarga la página.')
-            console.error('storeId is null or undefined')
-            return
-        }
-
-        console.log('Connecting Telegram for store:', storeId)
-        setTelegramLoading(true)
-        try {
-            // Get session token
-            const { data: { session } } = await supabase.auth.getSession()
-            if (!session) {
-                throw new Error('No estás autenticado. Por favor inicia sesión.')
-            }
-
-            const response = await fetch(`/api/stores/${storeId}/telegram/connect-token`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${session.access_token}`,
-                    'Content-Type': 'application/json',
-                },
-            })
-
-            const data = await response.json()
-
-            if (!response.ok) {
-                console.error('API Error:', data)
-                throw new Error(data.error || 'Error al generar enlace de conexión')
-            }
-
-            if (!response.ok) {
-                throw new Error(data.error || 'Error al generar enlace de conexión')
-            }
-
-            // Open Telegram deep link
-            window.open(data.deepLink, '_blank')
-            
-            toast.success(
-                'Enlace generado. Abre Telegram y presiona "Start" en el bot para conectar.',
-                { duration: 5000 }
-            )
-        } catch (error) {
-            console.error('Error connecting Telegram:', error)
-            const errorMessage = error.message || 'Error al conectar Telegram'
-            const errorDetails = error.details ? `\n\n${error.details}` : ''
-            toast.error(`${errorMessage}${errorDetails}`, { duration: 6000 })
-        } finally {
-            setTelegramLoading(false)
-        }
-    }
-
-    const handleDisconnectTelegram = async () => {
-        if (!storeId) {
-            toast.error('No se pudo identificar la tienda')
-            return
-        }
-
-        if (!confirm('¿Estás seguro de que quieres desconectar Telegram? Ya no recibirás notificaciones.')) {
-            return
-        }
-
-        setTelegramLoading(true)
-        try {
-            // Get session token
-            const { data: { session } } = await supabase.auth.getSession()
-            if (!session) {
-                throw new Error('No estás autenticado. Por favor inicia sesión.')
-            }
-
-            const response = await fetch(`/api/stores/${storeId}/telegram/disconnect`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${session.access_token}`,
-                    'Content-Type': 'application/json',
-                },
-            })
-
-            const data = await response.json()
-
-            if (!response.ok) {
-                throw new Error(data.error || 'Error al desconectar Telegram')
-            }
-
-            setTelegramStatus({
-                connected: false,
-                chatId: null,
-                enabled: false,
-            })
-
-            toast.success('Telegram desconectado correctamente')
-        } catch (error) {
-            console.error('Error disconnecting Telegram:', error)
-            toast.error(error.message || 'Error al desconectar Telegram')
-        } finally {
-            setTelegramLoading(false)
-        }
+    const handleTelegramPrefChange = (prefName) => {
+        setStoreInfo(prev => ({
+            ...prev,
+            notificationPrefs: {
+                ...prev.notificationPrefs,
+                [prefName]: !prev.notificationPrefs[prefName],
+            },
+        }))
     }
 
     const handleTestTelegram = async () => {
         if (!storeId) {
             toast.error('No se pudo identificar la tienda')
+            return
+        }
+
+        // Check if chat_id and enabled are set locally
+        if (!storeInfo.telegramChatId || !storeInfo.telegramEnabled) {
+            toast.error('Por favor ingresa tu Chat ID, habilita las notificaciones y guarda los cambios primero.')
             return
         }
 
@@ -262,7 +175,13 @@ export default function EditStore() {
             const data = await response.json()
 
             if (!response.ok) {
-                throw new Error(data.error || 'Error al enviar notificación de prueba')
+                // Provide more helpful error messages
+                if (data.error?.includes('no está conectado') || data.error?.includes('not connected')) {
+                    toast.error('Telegram no está conectado. Por favor guarda los cambios primero (el Chat ID debe estar guardado en la base de datos).', { duration: 6000 })
+                } else {
+                    throw new Error(data.error || 'Error al enviar notificación de prueba')
+                }
+                return
             }
 
             toast.success('Notificación de prueba enviada. Revisa tu Telegram.')
@@ -310,6 +229,9 @@ export default function EditStore() {
                 courier_cost: storeInfo.courierCost,
                 courier_cost_included: storeInfo.courierCostIncluded,
                 require_order_approval: storeInfo.requireOrderApproval,
+                telegram_chat_id: storeInfo.telegramChatId || null,
+                telegram_enabled: storeInfo.telegramEnabled || false,
+                notification_prefs: storeInfo.notificationPrefs,
             }
 
             console.log('💾 Saving store data:')
@@ -591,58 +513,104 @@ export default function EditStore() {
                     <h2 className="text-xl font-semibold text-[#1A1A1A] mb-4">Notificaciones de Telegram</h2>
                     
                     <div className="space-y-4">
-                        {telegramStatus.connected ? (
-                            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                                <div className="flex items-start justify-between">
-                                    <div className="flex-1">
-                                        <div className="flex items-center gap-2 mb-2">
-                                            <svg className="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 24 24">
-                                                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                                            </svg>
-                                            <span className="text-green-800 font-semibold">Telegram Conectado</span>
-                                        </div>
-                                        <p className="text-sm text-green-700 mb-3">
-                                            Recibirás notificaciones cuando haya nuevas órdenes, productos con bajo stock y mensajes de soporte.
-                                        </p>
-                                        <div className="flex gap-2">
-                                            <button
-                                                type="button"
-                                                onClick={handleTestTelegram}
-                                                disabled={telegramLoading}
-                                                className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                                            >
-                                                {telegramLoading ? 'Enviando...' : 'Enviar Notificación de Prueba'}
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={handleDisconnectTelegram}
-                                                disabled={telegramLoading}
-                                                className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                                            >
-                                                Desconectar
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                            <p className="text-sm text-blue-800 font-medium mb-2">📱 Cómo obtener tu Chat ID de Telegram:</p>
+                            <ol className="text-sm text-blue-700 space-y-1 list-decimal list-inside ml-2">
+                                <li>Inicia conversación con el bot <a href="https://t.me/userinfobot" target="_blank" rel="noopener noreferrer" className="underline font-medium">@userinfobot</a> en Telegram</li>
+                                <li className="font-semibold text-blue-800">⚠️ IMPORTANTE: Asegúrate de usar el bot correcto: <code className="bg-blue-100 px-1 rounded">@userinfobot</code> (User Info • Get ID • idbot)</li>
+                                <li>Envía cualquier mensaje al bot (ej: "/start" o "hola")</li>
+                                <li>El bot te responderá con tu información. Busca el campo <code className="bg-blue-100 px-1 rounded">Id:</code> que muestra un número como: <code className="bg-blue-100 px-1 rounded">8027256689</code></li>
+                                <li>Copia ese número (solo el número, sin espacios ni guiones) y pégalo en el campo de abajo</li>
+                            </ol>
+                            <p className="text-xs text-blue-600 mt-2">
+                                💡 Alternativa: Visita <a href="https://api.telegram.org/bot8501718133:AAEnmlFhPe04-0WjebhYwxOoSTbtnUg_HOU/getUpdates" target="_blank" rel="noopener noreferrer" className="underline">esta URL</a> después de enviar un mensaje al bot y busca tu <code className="bg-blue-100 px-1 rounded">chat.id</code>
+                            </p>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-[#1A1A1A] mb-2">
+                                Chat ID de Telegram
+                            </label>
+                            <input
+                                type="text"
+                                name="telegramChatId"
+                                value={storeInfo.telegramChatId || ''}
+                                onChange={(e) => setStoreInfo({ ...storeInfo, telegramChatId: e.target.value })}
+                                className="w-full px-4 py-3 rounded-xl border border-[#00C6A2]/20 focus:border-[#00C6A2] focus:ring-2 focus:ring-[#00C6A2]/20 outline-none transition-all"
+                                placeholder="Ej: 123456789"
+                            />
+                            <p className="text-xs text-[#1A1A1A]/60 mt-1">
+                                Tu Chat ID de Telegram (número sin espacios ni guiones)
+                            </p>
+                        </div>
+
+                        <label className="flex items-center gap-3 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={storeInfo.telegramEnabled}
+                                onChange={(e) => setStoreInfo({ ...storeInfo, telegramEnabled: e.target.checked })}
+                                className="w-5 h-5 rounded border-[#00C6A2] text-[#00C6A2] focus:ring-[#00C6A2]"
+                            />
+                            <div>
+                                <span className="text-[#1A1A1A] font-medium block">Habilitar notificaciones de Telegram</span>
+                                <span className="text-sm text-[#1A1A1A]/60 block mt-1">
+                                    Recibirás notificaciones cuando haya nuevas órdenes, productos con bajo stock y mensajes de soporte.
+                                </span>
                             </div>
-                        ) : (
-                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                                <p className="text-sm text-blue-800 mb-4">
-                                    Conecta tu cuenta de Telegram para recibir notificaciones instantáneas sobre nuevas órdenes, productos con bajo stock y más.
-                                </p>
+                        </label>
+
+                        {storeInfo.telegramChatId && storeInfo.telegramEnabled && (
+                            <div className="flex gap-2">
                                 <button
                                     type="button"
-                                    onClick={handleConnectTelegram}
-                                    disabled={telegramLoading || !storeId}
-                                    className="px-6 py-3 bg-[#00C6A2] hover:bg-[#00B894] text-white rounded-lg font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                    onClick={handleTestTelegram}
+                                    disabled={telegramLoading}
+                                    className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
-                                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                                    </svg>
-                                    {telegramLoading ? 'Generando enlace...' : 'Conectar Telegram'}
+                                    {telegramLoading ? 'Enviando...' : 'Enviar Notificación de Prueba'}
                                 </button>
                             </div>
                         )}
+                        {(!storeInfo.telegramChatId || !storeInfo.telegramEnabled) && (
+                            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mt-2">
+                                <p className="text-xs text-yellow-800">
+                                    ⚠️ <strong>Importante:</strong> Debes ingresar tu Chat ID, habilitar las notificaciones y <strong>guardar los cambios</strong> antes de poder enviar una notificación de prueba.
+                                </p>
+                            </div>
+                        )}
+
+                        <div className="border-t border-slate-200 pt-4 mt-4">
+                            <h3 className="text-sm font-semibold text-[#1A1A1A] mb-3">Preferencias de Notificación</h3>
+                            <div className="space-y-2">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={storeInfo.notificationPrefs.newOrder}
+                                        onChange={() => handleTelegramPrefChange('newOrder')}
+                                        className="w-4 h-4 rounded border-[#00C6A2] text-[#00C6A2] focus:ring-[#00C6A2]"
+                                    />
+                                    <span className="text-sm text-[#1A1A1A]">Nuevas Órdenes</span>
+                                </label>
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={storeInfo.notificationPrefs.lowStock}
+                                        onChange={() => handleTelegramPrefChange('lowStock')}
+                                        className="w-4 h-4 rounded border-[#00C6A2] text-[#00C6A2] focus:ring-[#00C6A2]"
+                                    />
+                                    <span className="text-sm text-[#1A1A1A]">Bajo Stock</span>
+                                </label>
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={storeInfo.notificationPrefs.support}
+                                        onChange={() => handleTelegramPrefChange('support')}
+                                        className="w-4 h-4 rounded border-[#00C6A2] text-[#00C6A2] focus:ring-[#00C6A2]"
+                                    />
+                                    <span className="text-sm text-[#1A1A1A]">Mensajes de Soporte</span>
+                                </label>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
