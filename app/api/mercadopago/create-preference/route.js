@@ -66,22 +66,37 @@ export async function POST(request) {
     const preference = new Preference(client);
     
     // Build base URL - ensure it's always defined
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
-    const successUrl = `${baseUrl}/order-success`;
-    const failureUrl = `${baseUrl}/order-success?status=failure`;
-    const pendingUrl = `${baseUrl}/order-success?status=pending`;
-    const webhookUrl = `${baseUrl}/api/mercadopago/webhook`;
+    const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000').trim();
     
-    // Validate URLs are not empty
-    if (!successUrl || !failureUrl || !pendingUrl) {
-      throw new Error('Error al construir las URLs de retorno. Verifica NEXT_PUBLIC_SITE_URL en .env.local');
+    // Ensure baseUrl is a valid URL
+    if (!baseUrl || baseUrl === 'undefined' || baseUrl === 'null') {
+      throw new Error('NEXT_PUBLIC_SITE_URL no está configurado correctamente. Verifica .env.local');
+    }
+    
+    const successUrl = `${baseUrl}/order-success`.trim();
+    const failureUrl = `${baseUrl}/order-success?status=failure`.trim();
+    const pendingUrl = `${baseUrl}/order-success?status=pending`.trim();
+    const webhookUrl = `${baseUrl}/api/mercadopago/webhook`.trim();
+    
+    // Validate URLs are not empty and are valid strings
+    if (!successUrl || successUrl === 'undefined' || successUrl.includes('undefined')) {
+      throw new Error(`Error al construir la URL de éxito: ${successUrl}. Verifica NEXT_PUBLIC_SITE_URL en .env.local`);
+    }
+    if (!failureUrl || failureUrl === 'undefined' || failureUrl.includes('undefined')) {
+      throw new Error(`Error al construir la URL de fallo: ${failureUrl}. Verifica NEXT_PUBLIC_SITE_URL en .env.local`);
+    }
+    if (!pendingUrl || pendingUrl === 'undefined' || pendingUrl.includes('undefined')) {
+      throw new Error(`Error al construir la URL de pendiente: ${pendingUrl}. Verifica NEXT_PUBLIC_SITE_URL en .env.local`);
     }
     
     console.log('🔗 URLs configuradas:', {
+      baseUrl: baseUrl,
       success: successUrl,
       failure: failureUrl,
       pending: pendingUrl,
-      webhook: webhookUrl
+      webhook: webhookUrl,
+      successUrlType: typeof successUrl,
+      successUrlLength: successUrl.length
     });
     
     const preferenceData = {
@@ -101,11 +116,11 @@ export async function POST(request) {
         } : undefined,
       } : undefined,
       back_urls: {
-        success: successUrl,
-        failure: failureUrl,
-        pending: pendingUrl,
+        success: String(successUrl), // Ensure it's a string
+        failure: String(failureUrl),
+        pending: String(pendingUrl),
       },
-      auto_return: 'approved',
+      auto_return: 'approved', // Only set if back_urls.success is defined (which we validated above)
       external_reference: orderId,
       notification_url: webhookUrl,
       statement_descriptor: '4joint',
@@ -117,6 +132,17 @@ export async function POST(request) {
     console.log('📤 Creando preferencia de pago en Mercado Pago...');
     console.log('📦 Items:', preferenceItems.length, 'items');
     console.log('💰 Total:', totalFromItems);
+    console.log('📋 Preference data structure:', JSON.stringify({
+      hasItems: !!preferenceData.items,
+      itemsCount: preferenceData.items?.length,
+      hasBackUrls: !!preferenceData.back_urls,
+      backUrlsSuccess: preferenceData.back_urls?.success,
+      backUrlsFailure: preferenceData.back_urls?.failure,
+      backUrlsPending: preferenceData.back_urls?.pending,
+      autoReturn: preferenceData.auto_return,
+      hasExternalReference: !!preferenceData.external_reference,
+      hasNotificationUrl: !!preferenceData.notification_url,
+    }, null, 2));
     
     const response = await preference.create({ body: preferenceData });
     
