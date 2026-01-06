@@ -19,8 +19,12 @@ NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY=your_mercadopago_public_key
 RESEND_API_KEY=re_DRJZMp9c_4c2eXFBtaa3bKRo4f74fYJvX
 
 # Telegram Notifications - ✅ CONFIGURADO
+# UN SOLO BOT para todas las tiendas - cada tienda se conecta automáticamente
 TELEGRAM_BOT_TOKEN=8501718133:AAEnmlFhPe04-0WjebhYwxOoSTbtnUg_HOU
-TELEGRAM_CHAT_ID=-4910459403
+TELEGRAM_BOT_USERNAME=orders4jointbot
+
+# Nota: TELEGRAM_CHAT_ID ya no es necesario (sistema antiguo)
+# Cada tienda ahora tiene su propio chat_id guardado en la base de datos
 ```
 
 ## ✅ Configuración de Notificaciones Completa

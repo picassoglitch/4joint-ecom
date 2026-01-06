@@ -11,6 +11,7 @@ import LocationSearch from "@/components/store/LocationSearch"
 import ServiceAreaSelector from "@/components/store/ServiceAreaSelector"
 import { getUserAddresses } from "@/lib/supabase/addresses"
 import { getCurrentUser } from "@/lib/supabase/auth"
+import { supabase } from "@/lib/supabase/client"
 
 export default function EditStore() {
     const [loading, setLoading] = useState(true)
@@ -41,6 +42,13 @@ export default function EditStore() {
     const [logoFile, setLogoFile] = useState(null)
     const [logoPreview, setLogoPreview] = useState("")
     const fileInputRef = useRef(null)
+    const [telegramStatus, setTelegramStatus] = useState({
+        connected: false,
+        chatId: null,
+        enabled: false,
+    })
+    const [telegramLoading, setTelegramLoading] = useState(false)
+    const [storeId, setStoreId] = useState(null)
 
     const fetchStoreInfo = async () => {
         try {
@@ -93,6 +101,12 @@ export default function EditStore() {
                     requireOrderApproval: vendor.require_order_approval || false,
                 })
                 setLogoPreview(vendor.logo || "")
+                setStoreId(vendor.id)
+                setTelegramStatus({
+                    connected: !!vendor.telegram_chat_id,
+                    chatId: vendor.telegram_chat_id || null,
+                    enabled: vendor.telegram_enabled || false,
+                })
             } else {
                 toast.error('No tienes una tienda registrada. Por favor regístrate primero.')
             }
@@ -122,6 +136,142 @@ export default function EditStore() {
 
     const handleChange = (e) => {
         setStoreInfo({ ...storeInfo, [e.target.name]: e.target.value })
+    }
+
+    const handleConnectTelegram = async () => {
+        if (!storeId) {
+            toast.error('No se pudo identificar la tienda. Por favor recarga la página.')
+            console.error('storeId is null or undefined')
+            return
+        }
+
+        console.log('Connecting Telegram for store:', storeId)
+        setTelegramLoading(true)
+        try {
+            // Get session token
+            const { data: { session } } = await supabase.auth.getSession()
+            if (!session) {
+                throw new Error('No estás autenticado. Por favor inicia sesión.')
+            }
+
+            const response = await fetch(`/api/stores/${storeId}/telegram/connect-token`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${session.access_token}`,
+                    'Content-Type': 'application/json',
+                },
+            })
+
+            const data = await response.json()
+
+            if (!response.ok) {
+                console.error('API Error:', data)
+                throw new Error(data.error || 'Error al generar enlace de conexión')
+            }
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Error al generar enlace de conexión')
+            }
+
+            // Open Telegram deep link
+            window.open(data.deepLink, '_blank')
+            
+            toast.success(
+                'Enlace generado. Abre Telegram y presiona "Start" en el bot para conectar.',
+                { duration: 5000 }
+            )
+        } catch (error) {
+            console.error('Error connecting Telegram:', error)
+            const errorMessage = error.message || 'Error al conectar Telegram'
+            const errorDetails = error.details ? `\n\n${error.details}` : ''
+            toast.error(`${errorMessage}${errorDetails}`, { duration: 6000 })
+        } finally {
+            setTelegramLoading(false)
+        }
+    }
+
+    const handleDisconnectTelegram = async () => {
+        if (!storeId) {
+            toast.error('No se pudo identificar la tienda')
+            return
+        }
+
+        if (!confirm('¿Estás seguro de que quieres desconectar Telegram? Ya no recibirás notificaciones.')) {
+            return
+        }
+
+        setTelegramLoading(true)
+        try {
+            // Get session token
+            const { data: { session } } = await supabase.auth.getSession()
+            if (!session) {
+                throw new Error('No estás autenticado. Por favor inicia sesión.')
+            }
+
+            const response = await fetch(`/api/stores/${storeId}/telegram/disconnect`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${session.access_token}`,
+                    'Content-Type': 'application/json',
+                },
+            })
+
+            const data = await response.json()
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Error al desconectar Telegram')
+            }
+
+            setTelegramStatus({
+                connected: false,
+                chatId: null,
+                enabled: false,
+            })
+
+            toast.success('Telegram desconectado correctamente')
+        } catch (error) {
+            console.error('Error disconnecting Telegram:', error)
+            toast.error(error.message || 'Error al desconectar Telegram')
+        } finally {
+            setTelegramLoading(false)
+        }
+    }
+
+    const handleTestTelegram = async () => {
+        if (!storeId) {
+            toast.error('No se pudo identificar la tienda')
+            return
+        }
+
+        setTelegramLoading(true)
+        try {
+            // Get session token
+            const { data: { session } } = await supabase.auth.getSession()
+            if (!session) {
+                throw new Error('No estás autenticado. Por favor inicia sesión.')
+            }
+
+            const response = await fetch(`/api/stores/${storeId}/telegram/test`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${session.access_token}`,
+                    'Content-Type': 'application/json',
+                },
+            })
+
+            const data = await response.json()
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Error al enviar notificación de prueba')
+            }
+
+            toast.success('Notificación de prueba enviada. Revisa tu Telegram.')
+        } catch (error) {
+            console.error('Error testing Telegram:', error)
+            toast.error(error.message || 'Error al enviar notificación de prueba')
+        } finally {
+            setTelegramLoading(false)
+        }
     }
 
     const handleSubmit = async (e) => {
@@ -247,7 +397,7 @@ export default function EditStore() {
                     <input
                         type="text"
                         name="name"
-                        value={storeInfo.name}
+                        value={storeInfo.name || ''}
                         onChange={handleChange}
                         required
                         className="w-full px-4 py-3 rounded-xl border border-[#00C6A2]/20 focus:border-[#00C6A2] focus:ring-2 focus:ring-[#00C6A2]/20 outline-none transition-all"
@@ -262,7 +412,7 @@ export default function EditStore() {
                     </label>
                     <textarea
                         name="description"
-                        value={storeInfo.description}
+                        value={storeInfo.description || ''}
                         onChange={handleChange}
                         required
                         rows={5}
@@ -279,7 +429,7 @@ export default function EditStore() {
                     <input
                         type="email"
                         name="email"
-                        value={storeInfo.email}
+                        value={storeInfo.email || ''}
                         onChange={handleChange}
                         required
                         className="w-full px-4 py-3 rounded-xl border border-[#00C6A2]/20 focus:border-[#00C6A2] focus:ring-2 focus:ring-[#00C6A2]/20 outline-none transition-all"
@@ -295,7 +445,7 @@ export default function EditStore() {
                     <input
                         type="text"
                         name="contact"
-                        value={storeInfo.contact}
+                        value={storeInfo.contact || ''}
                         onChange={handleChange}
                         className="w-full px-4 py-3 rounded-xl border border-[#00C6A2]/20 focus:border-[#00C6A2] focus:ring-2 focus:ring-[#00C6A2]/20 outline-none transition-all"
                         placeholder="+52 55 1234 5678"
@@ -436,6 +586,66 @@ export default function EditStore() {
                     </div>
                 </div>
 
+                {/* Telegram Notifications */}
+                <div className="border-t border-slate-200 pt-6">
+                    <h2 className="text-xl font-semibold text-[#1A1A1A] mb-4">Notificaciones de Telegram</h2>
+                    
+                    <div className="space-y-4">
+                        {telegramStatus.connected ? (
+                            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                                <div className="flex items-start justify-between">
+                                    <div className="flex-1">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <svg className="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 24 24">
+                                                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                                            </svg>
+                                            <span className="text-green-800 font-semibold">Telegram Conectado</span>
+                                        </div>
+                                        <p className="text-sm text-green-700 mb-3">
+                                            Recibirás notificaciones cuando haya nuevas órdenes, productos con bajo stock y mensajes de soporte.
+                                        </p>
+                                        <div className="flex gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={handleTestTelegram}
+                                                disabled={telegramLoading}
+                                                className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                {telegramLoading ? 'Enviando...' : 'Enviar Notificación de Prueba'}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={handleDisconnectTelegram}
+                                                disabled={telegramLoading}
+                                                className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                Desconectar
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                <p className="text-sm text-blue-800 mb-4">
+                                    Conecta tu cuenta de Telegram para recibir notificaciones instantáneas sobre nuevas órdenes, productos con bajo stock y más.
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={handleConnectTelegram}
+                                    disabled={telegramLoading || !storeId}
+                                    className="px-6 py-3 bg-[#00C6A2] hover:bg-[#00B894] text-white rounded-lg font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                >
+                                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                                    </svg>
+                                    {telegramLoading ? 'Generando enlace...' : 'Conectar Telegram'}
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
                 {/* Meetup Points */}
                 {storeInfo.fulfillmentModes.meetupPoint && (
                     <div className="border-t border-slate-200 pt-6">
@@ -461,7 +671,7 @@ export default function EditStore() {
                                     type="number"
                                     step="0.01"
                                     min="0"
-                                    value={storeInfo.minOrder}
+                                    value={storeInfo.minOrder ?? 0}
                                     onChange={(e) => setStoreInfo({ ...storeInfo, minOrder: parseFloat(e.target.value) || 0 })}
                                     className="w-full px-4 py-3 rounded-xl border border-[#00C6A2]/20 focus:border-[#00C6A2] focus:ring-2 focus:ring-[#00C6A2]/20 outline-none transition-all"
                                 />
@@ -472,7 +682,7 @@ export default function EditStore() {
                                     Política de Costo de Envío
                                 </label>
                                 <select
-                                    value={storeInfo.deliveryFeePolicy}
+                                    value={storeInfo.deliveryFeePolicy || 'flat'}
                                     onChange={(e) => setStoreInfo({ ...storeInfo, deliveryFeePolicy: e.target.value })}
                                     className="w-full px-4 py-3 rounded-xl border border-[#00C6A2]/20 focus:border-[#00C6A2] focus:ring-2 focus:ring-[#00C6A2]/20 outline-none transition-all"
                                 >
@@ -491,7 +701,7 @@ export default function EditStore() {
                                         type="number"
                                         step="0.01"
                                         min="0"
-                                        value={storeInfo.deliveryFeeAmount}
+                                        value={storeInfo.deliveryFeeAmount ?? 0}
                                         onChange={(e) => setStoreInfo({ ...storeInfo, deliveryFeeAmount: parseFloat(e.target.value) || 0 })}
                                         className="w-full px-4 py-3 rounded-xl border border-[#00C6A2]/20 focus:border-[#00C6A2] focus:ring-2 focus:ring-[#00C6A2]/20 outline-none transition-all"
                                     />
@@ -508,7 +718,7 @@ export default function EditStore() {
                                         step="0.1"
                                         min="0"
                                         max="100"
-                                        value={storeInfo.deliveryFeePercent}
+                                        value={storeInfo.deliveryFeePercent ?? 0}
                                         onChange={(e) => setStoreInfo({ ...storeInfo, deliveryFeePercent: parseFloat(e.target.value) || 0 })}
                                         className="w-full px-4 py-3 rounded-xl border border-[#00C6A2]/20 focus:border-[#00C6A2] focus:ring-2 focus:ring-[#00C6A2]/20 outline-none transition-all"
                                     />
@@ -520,7 +730,7 @@ export default function EditStore() {
                                     Notas de Entrega
                                 </label>
                                 <textarea
-                                    value={storeInfo.deliveryNotes}
+                                    value={storeInfo.deliveryNotes || ''}
                                     onChange={(e) => setStoreInfo({ ...storeInfo, deliveryNotes: e.target.value })}
                                     rows={3}
                                     className="w-full px-4 py-3 rounded-xl border border-[#00C6A2]/20 focus:border-[#00C6A2] focus:ring-2 focus:ring-[#00C6A2]/20 outline-none transition-all resize-none"
@@ -545,7 +755,7 @@ export default function EditStore() {
                                     type="number"
                                     step="0.01"
                                     min="0"
-                                    value={storeInfo.courierCost}
+                                    value={storeInfo.courierCost ?? 0}
                                     onChange={(e) => setStoreInfo({ ...storeInfo, courierCost: parseFloat(e.target.value) || 0 })}
                                     className="w-full px-4 py-3 rounded-xl border border-[#00C6A2]/20 focus:border-[#00C6A2] focus:ring-2 focus:ring-[#00C6A2]/20 outline-none transition-all"
                                 />

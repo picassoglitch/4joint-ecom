@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { sendTelegramNotification, formatOrderNotification } from '@/lib/services/telegram';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -8,16 +9,15 @@ const supabase = supabaseUrl && supabaseServiceKey
   ? createClient(supabaseUrl, supabaseServiceKey)
   : null;
 
-// Telegram Bot configuration
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID; // Can be vendor-specific or general
-
 export async function POST(request) {
   try {
     const body = await request.json();
     const { orderId, vendorId } = body;
 
+    console.log(`📬 Notification request received - Order: ${orderId}, Vendor: ${vendorId}`)
+
     if (!orderId || !vendorId) {
+      console.error('❌ Missing required parameters:', { orderId, vendorId })
       return NextResponse.json(
         { error: 'orderId and vendorId are required' },
         { status: 400 }
@@ -106,9 +106,26 @@ Fecha: ${new Date(order.created_at).toLocaleString('es-MX')}
       console.error('Error sending email notification:', emailError);
     }
 
-    // Send Telegram notification
+    // Send Telegram notification using the new service
     try {
-      await sendTelegramNotification(orderMessage, vendor.telegram_chat_id || TELEGRAM_CHAT_ID);
+      console.log(`📱 Attempting to send Telegram notification to vendor: ${vendorId}`)
+      
+      // Format order items for Telegram notification
+      const formattedItems = (order.order_items || []).map(item => ({
+        product: item.product || { name: 'Producto' },
+        quantity: item.quantity || 1,
+        price: parseFloat(item.price) || 0,
+        variant: item.variant || null,
+      }));
+
+      const telegramMessage = formatOrderNotification(order, formattedItems);
+      const telegramResult = await sendTelegramNotification(vendorId, telegramMessage, 'newOrder');
+      
+      if (telegramResult.success) {
+        console.log(`✅ Telegram notification sent successfully to vendor ${vendorId}`)
+      } else {
+        console.error(`❌ Telegram notification failed for vendor ${vendorId}:`, telegramResult.error)
+      }
     } catch (telegramError) {
       console.error('Error sending Telegram notification:', telegramError);
     }
@@ -174,34 +191,4 @@ async function sendEmailNotification(vendorEmail, message, orderId) {
   }
 }
 
-async function sendTelegramNotification(message, chatId) {
-  if (!TELEGRAM_BOT_TOKEN || !chatId) {
-    console.warn('Telegram bot token or chat ID not configured, skipping Telegram notification');
-    return;
-  }
-
-  try {
-    const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text: message,
-        parse_mode: 'HTML',
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(`Telegram API error: ${errorData.description || response.statusText}`);
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error('Error sending Telegram message:', error);
-    throw error;
-  }
-}
 
