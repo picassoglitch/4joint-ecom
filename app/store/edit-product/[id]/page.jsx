@@ -8,7 +8,7 @@ import { getImageBlobUrl, revokeBlobUrl } from "@/lib/utils/imageLoader"
 import { Upload, Plus, X, Save } from "lucide-react"
 import { getCurrentUser } from "@/lib/supabase/auth"
 import { useRouter, useParams } from "next/navigation"
-import { getProductById, updateProduct } from "@/lib/supabase/database"
+import { getProductById, updateProduct, getCurrentVendor } from "@/lib/supabase/database"
 import Loading from "@/components/Loading"
 import ImageEditor from "@/components/store/ImageEditor"
 
@@ -65,6 +65,11 @@ export default function StoreEditProduct() {
     const [variants, setVariants] = useState([])
     const [useVariants, setUseVariants] = useState(false)
     const [showCustomCategory, setShowCustomCategory] = useState(false)
+    const [isGreenBoy, setIsGreenBoy] = useState(false)
+    const [providerCost, setProviderCost] = useState(0)
+    
+    // GreenBoy Store ID
+    const GREENBOY_STORE_ID = 'f64fcf18-037f-47d8-b58a-9365cb62caf2'
 
     // Check authentication and load product
     useEffect(() => {
@@ -78,6 +83,12 @@ export default function StoreEditProduct() {
                 }
                 setIsAuthenticated(true)
                 setCurrentUser(user)
+
+                // Check if this is GreenBoy store
+                const vendor = await getCurrentVendor()
+                if (vendor && vendor.id === GREENBOY_STORE_ID) {
+                    setIsGreenBoy(true)
+                }
 
                 // Load product data
                 const product = await getProductById(productId)
@@ -103,6 +114,11 @@ export default function StoreEditProduct() {
                     category: product.category || "",
                     customCategory: product.category && !categories.includes(product.category) ? product.category : "",
                 })
+                
+                // Load provider_cost for GreenBoy
+                if (vendor && vendor.id === GREENBOY_STORE_ID) {
+                    setProviderCost(parseFloat(product.provider_cost || 0))
+                }
 
                 // Set images - normalize URLs from DB
                 // Ensure we store full Supabase URLs for proper retrieval
@@ -421,6 +437,11 @@ export default function StoreEditProduct() {
                 category: finalCategory,
                 images: images,
                 in_stock: true,
+            }
+            
+            // Add provider_cost for GreenBoy
+            if (isGreenBoy) {
+                productData.provider_cost = parseFloat(providerCost) || 0
             }
 
             // Handle variants
@@ -844,6 +865,27 @@ export default function StoreEditProduct() {
                         </div>
                     )}
                 </div>
+
+                {/* Provider Cost - Only for GreenBoy */}
+                {isGreenBoy && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Costo de Proveedor (MXN) *
+                            <span className="text-xs text-slate-500 ml-2 block mt-1">
+                                Este costo se usa para calcular las ganancias (50/50 split después de descontar el costo)
+                            </span>
+                        </label>
+                        <input
+                            type="number"
+                            value={providerCost}
+                            onChange={(e) => setProviderCost(parseFloat(e.target.value) || 0)}
+                            min="0"
+                            step="0.01"
+                            className="w-full px-4 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            required
+                        />
+                    </div>
+                )}
 
                 {/* Submit */}
                 <div className="flex gap-4">
