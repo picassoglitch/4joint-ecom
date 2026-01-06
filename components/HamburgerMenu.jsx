@@ -50,7 +50,7 @@ export default function HamburgerMenu({ isOpen, onClose }) {
                     <h2 className="text-lg font-bold text-[#1A1A1A]">Menú</h2>
                     <button
                         onClick={onClose}
-                        className="p-2 hover:bg-slate-100 rounded-full transition-colors"
+                        className="p-2 hover:bg-slate-100 rounded-full transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center touch-manipulation"
                         aria-label="Cerrar menú"
                     >
                         <X size={20} className="text-[#1A1A1A]" />
@@ -101,7 +101,7 @@ export default function HamburgerMenu({ isOpen, onClose }) {
                                         <button
                                             key={index}
                                             onClick={() => handleCategoryClick(category)}
-                                            className="w-full flex items-center justify-between py-3 px-4 hover:bg-slate-50 rounded-lg transition-colors text-left group"
+                                            className="w-full flex items-center justify-between py-3 px-4 hover:bg-slate-50 rounded-lg transition-colors text-left group min-h-[44px] touch-manipulation"
                                         >
                                             <span className="text-[#1A1A1A] font-medium">{category}</span>
                                             <ChevronRight size={16} className="text-slate-400 group-hover:text-[#00C6A2] transition-colors" />
@@ -121,4 +121,3 @@ export default function HamburgerMenu({ isOpen, onClose }) {
         </>
     )
 }
-
