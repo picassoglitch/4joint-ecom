@@ -65,6 +65,25 @@ export async function POST(request) {
     // Create preference
     const preference = new Preference(client);
     
+    // Build base URL - ensure it's always defined
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+    const successUrl = `${baseUrl}/order-success`;
+    const failureUrl = `${baseUrl}/order-success?status=failure`;
+    const pendingUrl = `${baseUrl}/order-success?status=pending`;
+    const webhookUrl = `${baseUrl}/api/mercadopago/webhook`;
+    
+    // Validate URLs are not empty
+    if (!successUrl || !failureUrl || !pendingUrl) {
+      throw new Error('Error al construir las URLs de retorno. Verifica NEXT_PUBLIC_SITE_URL en .env.local');
+    }
+    
+    console.log('🔗 URLs configuradas:', {
+      success: successUrl,
+      failure: failureUrl,
+      pending: pendingUrl,
+      webhook: webhookUrl
+    });
+    
     const preferenceData = {
       items: preferenceItems,
       payer: payer ? {
@@ -82,13 +101,13 @@ export async function POST(request) {
         } : undefined,
       } : undefined,
       back_urls: {
-        success: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/payment/success`,
-        failure: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/payment/failure`,
-        pending: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/payment/pending`,
+        success: successUrl,
+        failure: failureUrl,
+        pending: pendingUrl,
       },
       auto_return: 'approved',
       external_reference: orderId,
-      notification_url: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/mercadopago/webhook`,
+      notification_url: webhookUrl,
       statement_descriptor: '4joint',
       metadata: {
         order_id: orderId,
