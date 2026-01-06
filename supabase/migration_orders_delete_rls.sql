@@ -1,17 +1,11 @@
 -- Migration: Add DELETE policies for orders table
 -- Allows:
--- 1. Admins to delete any order
--- 2. Vendors to delete their own orders (where vendor_id = auth.uid())
+-- 1. Only admins can delete orders (vendors can no longer delete orders)
 
 -- Drop existing DELETE policy if it exists (idempotent)
 DROP POLICY IF EXISTS "Vendors can delete their own orders" ON public.orders;
 DROP POLICY IF EXISTS "Admins can delete any order" ON public.orders;
-
--- Policy: Vendors can delete their own orders
-CREATE POLICY "Vendors can delete their own orders"
-  ON public.orders
-  FOR DELETE
-  USING (auth.uid() = vendor_id);
+DROP POLICY IF EXISTS "Only admins can delete orders" ON public.orders;
 
 -- Policy: Only admins can delete orders
 -- Vendors can no longer delete their own orders - only admins can delete orders
