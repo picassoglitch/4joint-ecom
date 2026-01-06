@@ -55,6 +55,32 @@ export async function POST(request) {
               payment_provider: 'MERCADOPAGO',
             })
             .eq('id', externalReference);
+          
+          // Notify vendor about the confirmed payment and order
+          console.log(`📧 Payment approved for order ${externalReference}. Notifying vendor ${orderData?.vendor_id}...`)
+          try {
+            const notifyResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/notify-vendor`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                orderId: externalReference,
+                vendorId: orderData.vendor_id,
+              }),
+            })
+            
+            if (!notifyResponse.ok) {
+              const errorData = await notifyResponse.json().catch(() => ({}))
+              console.error('❌ Notification API error:', errorData)
+            } else {
+              const result = await notifyResponse.json()
+              console.log('✅ Notification sent after payment confirmation:', result)
+            }
+          } catch (notifyError) {
+            console.error('❌ Error notifying vendor after payment (non-blocking):', notifyError);
+            // Don't fail the webhook if notification fails
+          }
         } else if (paymentStatus === 'rejected' || paymentStatus === 'cancelled') {
           await supabase
             .from('orders')

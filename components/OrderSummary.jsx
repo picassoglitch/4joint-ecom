@@ -741,30 +741,35 @@ const OrderSummary = ({ totalPrice, items }) => {
                 await createOrderItems(order.id, orderItems);
                 console.log('Order items created successfully');
                 
-                // Notify vendor about new order (async, don't wait for it)
-                try {
-                    console.log(`📧 Notifying vendor ${order.vendor_id} about order ${order.id}`)
-                    const notifyResponse = await fetch('/api/notify-vendor', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            orderId: order.id,
-                            vendorId: order.vendor_id,
-                        }),
-                    })
-                    
-                    if (!notifyResponse.ok) {
-                        const errorData = await notifyResponse.json().catch(() => ({}))
-                        console.error('❌ Notification API error:', errorData)
-                    } else {
-                        const result = await notifyResponse.json()
-                        console.log('✅ Notification sent:', result)
+                // Notify vendor about new order ONLY for COD (cash on delivery)
+                // For Mercado Pago, notifications will be sent after payment confirmation via webhook
+                if (paymentMethod === 'COD') {
+                    try {
+                        console.log(`📧 Notifying vendor ${order.vendor_id} about COD order ${order.id}`)
+                        const notifyResponse = await fetch('/api/notify-vendor', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                orderId: order.id,
+                                vendorId: order.vendor_id,
+                            }),
+                        })
+                        
+                        if (!notifyResponse.ok) {
+                            const errorData = await notifyResponse.json().catch(() => ({}))
+                            console.error('❌ Notification API error:', errorData)
+                        } else {
+                            const result = await notifyResponse.json()
+                            console.log('✅ Notification sent:', result)
+                        }
+                    } catch (notifyError) {
+                        console.error('❌ Error notifying vendor (non-blocking):', notifyError);
+                        // Don't fail the order if notification fails
                     }
-                } catch (notifyError) {
-                    console.error('❌ Error notifying vendor (non-blocking):', notifyError);
-                    // Don't fail the order if notification fails
+                } else {
+                    console.log(`⏳ Order ${order.id} created with ${paymentMethod}. Notifications will be sent after payment confirmation.`)
                 }
             } catch (createItemsError) {
                 console.error('Error creating order items:', createItemsError);
