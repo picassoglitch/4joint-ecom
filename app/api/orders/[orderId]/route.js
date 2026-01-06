@@ -6,7 +6,9 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
 export async function DELETE(request, { params }) {
   try {
-    const { orderId } = params
+    // Next.js 15+ requires awaiting params
+    const resolvedParams = await params
+    const { orderId } = resolvedParams
 
     if (!orderId) {
       return NextResponse.json(

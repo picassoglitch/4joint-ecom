@@ -5,9 +5,11 @@ import { useEffect, useState } from "react"
 import toast from "react-hot-toast"
 import { getVendors } from "@/lib/supabase/database"
 import { getCurrentUser } from "@/lib/supabase/auth"
-import { Trash2 } from "lucide-react"
+import { Trash2, BarChart3 } from "lucide-react"
+import { useRouter } from "next/navigation"
 
 export default function AdminStores() {
+    const router = useRouter()
     const [stores, setStores] = useState([])
     const [loading, setLoading] = useState(true)
     const [deleting, setDeleting] = useState({})
@@ -163,6 +165,13 @@ export default function AdminStores() {
                                         <span className="dot absolute left-1 top-1 w-3 h-3 bg-white rounded-full transition-transform duration-200 ease-in-out peer-checked:translate-x-4"></span>
                                     </label>
                                 </div>
+                                <button
+                                    onClick={() => router.push(`/admin/stores/${store.id}/dashboard`)}
+                                    className="px-4 py-2 bg-[#00C6A2] hover:bg-[#00B894] text-white rounded-lg font-semibold transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
+                                >
+                                    <BarChart3 size={16} />
+                                    Ver Dashboard
+                                </button>
                                 <button
                                     onClick={() => handleDeleteStore(store.id, store.name)}
                                     disabled={deleting[store.id]}

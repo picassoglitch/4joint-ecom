@@ -120,7 +120,9 @@ export async function POST(request) {
         failure: String(failureUrl),
         pending: String(pendingUrl),
       },
-      auto_return: 'approved', // Only set if back_urls.success is defined (which we validated above)
+      // Note: auto_return requires back_urls.success to be defined and valid
+      // For localhost development, we might need to remove auto_return or use ngrok
+      auto_return: successUrl && !successUrl.includes('localhost') ? 'approved' : undefined,
       external_reference: orderId,
       notification_url: webhookUrl,
       statement_descriptor: '4joint',
@@ -132,6 +134,9 @@ export async function POST(request) {
     console.log('📤 Creando preferencia de pago en Mercado Pago...');
     console.log('📦 Items:', preferenceItems.length, 'items');
     console.log('💰 Total:', totalFromItems);
+    
+    // Log the actual preference data being sent
+    console.log('📋 Full preference data being sent:', JSON.stringify(preferenceData, null, 2));
     console.log('📋 Preference data structure:', JSON.stringify({
       hasItems: !!preferenceData.items,
       itemsCount: preferenceData.items?.length,
@@ -139,6 +144,8 @@ export async function POST(request) {
       backUrlsSuccess: preferenceData.back_urls?.success,
       backUrlsFailure: preferenceData.back_urls?.failure,
       backUrlsPending: preferenceData.back_urls?.pending,
+      backUrlsType: typeof preferenceData.back_urls,
+      backUrlsSuccessType: typeof preferenceData.back_urls?.success,
       autoReturn: preferenceData.auto_return,
       hasExternalReference: !!preferenceData.external_reference,
       hasNotificationUrl: !!preferenceData.notification_url,

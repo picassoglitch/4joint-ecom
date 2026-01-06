@@ -12,8 +12,10 @@ SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 NEXT_PUBLIC_SITE_URL=https://4joint.net
 
 # Mercado Pago
-MERCADOPAGO_ACCESS_TOKEN=your_mercadopago_access_token
-NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY=your_mercadopago_public_key
+# ACCESS_TOKEN: Token de acceso para crear preferencias de pago (backend)
+MERCADOPAGO_ACCESS_TOKEN=APP_USR-xxxxxxxxxxxxx-xxxxxx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-xxxxxxxxxx
+# PUBLIC_KEY: Clave pública para integración frontend (si se usa)
+NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY=APP_USR-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 
 # Email Notifications (Resend) - ✅ CONFIGURADO
 RESEND_API_KEY=re_DRJZMp9c_4c2eXFBtaa3bKRo4f74fYJvX

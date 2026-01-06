@@ -13,10 +13,9 @@ CREATE POLICY "Vendors can delete their own orders"
   FOR DELETE
   USING (auth.uid() = vendor_id);
 
--- Policy: Admins can delete any order
--- Note: This checks if the user's role in metadata is 'admin'
--- You may need to adjust this based on how admin role is stored
-CREATE POLICY "Admins can delete any order"
+-- Policy: Only admins can delete orders
+-- Vendors can no longer delete their own orders - only admins can delete orders
+CREATE POLICY "Only admins can delete orders"
   ON public.orders
   FOR DELETE
   USING (
@@ -28,9 +27,6 @@ CREATE POLICY "Admins can delete any order"
   );
 
 -- Add comment for documentation
-COMMENT ON POLICY "Vendors can delete their own orders" ON public.orders IS 
-  'Allows vendors to delete orders where they are the vendor (vendor_id = auth.uid())';
-
-COMMENT ON POLICY "Admins can delete any order" ON public.orders IS 
-  'Allows users with admin role to delete any order';
+COMMENT ON POLICY "Only admins can delete orders" ON public.orders IS 
+  'Only users with admin role can delete orders. Vendors can no longer delete orders.';
 
