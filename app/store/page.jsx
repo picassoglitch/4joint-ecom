@@ -16,6 +16,7 @@ export default function Dashboard() {
 
     const [loading, setLoading] = useState(true)
     const [hasStore, setHasStore] = useState(false)
+    const [isGreenBoy, setIsGreenBoy] = useState(false)
     const [dashboardData, setDashboardData] = useState({
         totalProducts: 0,
         totalEarnings: 0,
@@ -23,12 +24,23 @@ export default function Dashboard() {
         totalRevenue: 0,
         totalCommission: 0,
         ratings: [],
+        // GreenBoy specific fields
+        totalProviderCost: 0,
+        profitAfterProviderCost: 0,
     })
 
-    // Calculate commission (15%) and vendor earnings (85%)
+    // GreenBoy ID
+    const GREENBOY_STORE_ID = 'f64fcf18-037f-47d8-b58a-9365cb62caf2'
+
+    // Calculate commission (15%) and vendor earnings (85%) for regular stores
+    // For GreenBoy: 50/50 split after provider cost
     const commissionRate = 0.15
-    const vendorEarnings = dashboardData.totalRevenue * (1 - commissionRate)
-    const platformCommission = dashboardData.totalRevenue * commissionRate
+    const vendorEarnings = isGreenBoy 
+        ? dashboardData.profitAfterProviderCost * 0.5 
+        : dashboardData.totalRevenue * (1 - commissionRate)
+    const platformCommission = isGreenBoy
+        ? dashboardData.profitAfterProviderCost * 0.5
+        : dashboardData.totalRevenue * commissionRate
 
     const dashboardCardsData = [
         { title: 'Productos Totales', value: dashboardData.totalProducts, icon: ShoppingBasketIcon },
@@ -48,8 +60,13 @@ export default function Dashboard() {
                 return
             }
 
+            // Check if this is GreenBoy store
+            const isGreenBoyStore = vendor.id === GREENBOY_STORE_ID
+            setIsGreenBoy(isGreenBoyStore)
+
             const { getProducts, getOrders } = await import('@/lib/supabase/database')
             const { getCurrentUser } = await import('@/lib/supabase/auth')
+            const { createClient } = await import('@supabase/supabase-js')
             
             const { user } = await getCurrentUser()
             if (!user) {
@@ -66,16 +83,65 @@ export default function Dashboard() {
             // Calculate total revenue
             const totalRevenue = orders.reduce((sum, order) => sum + parseFloat(order.total || 0), 0)
             
+            // For GreenBoy, calculate provider cost from order items
+            let totalProviderCost = 0
+            let profitAfterProviderCost = 0
+
+            if (isGreenBoyStore) {
+                // Get Supabase client to fetch order items with products
+                const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+                const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+                
+                if (supabaseUrl && supabaseAnonKey) {
+                    const supabase = createClient(supabaseUrl, supabaseAnonKey)
+                    
+                    // Get all order items with product information for this vendor's orders
+                    const orderIds = orders.map(order => order.id)
+                    
+                    if (orderIds.length > 0) {
+                        const { data: orderItems, error: itemsError } = await supabase
+                            .from('order_items')
+                            .select(`
+                                quantity,
+                                product:products (
+                                    id,
+                                    provider_cost
+                                )
+                            `)
+                            .in('order_id', orderIds)
+                        
+                        if (!itemsError && orderItems) {
+                            // Calculate total provider cost
+                            totalProviderCost = orderItems.reduce((sum, item) => {
+                                const providerCost = parseFloat(item.product?.provider_cost || 0)
+                                const quantity = parseInt(item.quantity || 1)
+                                return sum + (providerCost * quantity)
+                            }, 0)
+                            
+                            // Calculate profit after provider cost
+                            profitAfterProviderCost = totalRevenue - totalProviderCost
+                        }
+                    }
+                }
+            }
+            
             // For ratings, we'll use empty array for now (can be enhanced later)
             const ratings = []
 
             setDashboardData({
                 totalProducts: products.length,
-                totalEarnings: totalRevenue * 0.85, // 85% after commission
+                totalEarnings: isGreenBoyStore 
+                    ? profitAfterProviderCost * 0.5 
+                    : totalRevenue * 0.85, // 85% after commission for regular stores
                 totalOrders: orders.length,
                 totalRevenue: totalRevenue,
-                totalCommission: totalRevenue * 0.15,
+                totalCommission: isGreenBoyStore
+                    ? profitAfterProviderCost * 0.5
+                    : totalRevenue * 0.15,
                 ratings: ratings,
+                // GreenBoy specific
+                totalProviderCost: totalProviderCost,
+                profitAfterProviderCost: profitAfterProviderCost,
             })
         } catch (error) {
             console.error('Error fetching dashboard data:', error)
@@ -138,24 +204,52 @@ export default function Dashboard() {
                 }
             </div>
 
-            {/* Commission Calculator */}
-            <div className="bg-gradient-to-br from-[#00C6A2]/10 to-[#FFD95E]/10 border border-[#00C6A2]/20 rounded-2xl p-6 mb-8 shadow-sm">
-                <h2 className="text-xl font-bold text-[#1A1A1A] mb-4">Calculadora de Comisiones</h2>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="bg-white/80 rounded-xl p-4 border border-[#00C6A2]/20">
-                        <p className="text-sm text-[#1A1A1A]/60 mb-1">Ingresos Totales</p>
-                        <p className="text-2xl font-bold text-[#1A1A1A]">{currency}{dashboardData.totalRevenue.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
-                    </div>
-                    <div className="bg-white/80 rounded-xl p-4 border border-[#FFD95E]/20">
-                        <p className="text-sm text-[#1A1A1A]/60 mb-1">Comisión Plataforma (15%)</p>
-                        <p className="text-2xl font-bold text-[#FFD95E]">{currency}{platformCommission.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
-                    </div>
-                    <div className="bg-white/80 rounded-xl p-4 border border-[#00C6A2]/30">
-                        <p className="text-sm text-[#1A1A1A]/60 mb-1">Tus Ganancias (85%)</p>
-                        <p className="text-2xl font-bold text-[#00C6A2]">{currency}{vendorEarnings.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
+            {/* Commission Calculator - Different for GreenBoy */}
+            {isGreenBoy ? (
+                <div className="bg-gradient-to-br from-[#00C6A2]/10 to-[#FFD95E]/10 border border-[#00C6A2]/20 rounded-2xl p-6 mb-8 shadow-sm">
+                    <h2 className="text-xl font-bold text-[#1A1A1A] mb-4">Calculadora de Ganancias (GreenBoy)</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                        <div className="bg-white/80 rounded-xl p-4 border border-[#00C6A2]/20">
+                            <p className="text-sm text-[#1A1A1A]/60 mb-1">Ingresos Totales</p>
+                            <p className="text-2xl font-bold text-[#1A1A1A]">{currency}{dashboardData.totalRevenue.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
+                        </div>
+                        <div className="bg-white/80 rounded-xl p-4 border border-red-200">
+                            <p className="text-sm text-[#1A1A1A]/60 mb-1">Costo de Proveedor</p>
+                            <p className="text-2xl font-bold text-red-600">{currency}{dashboardData.totalProviderCost.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
+                        </div>
+                        <div className="bg-white/80 rounded-xl p-4 border border-blue-200">
+                            <p className="text-sm text-[#1A1A1A]/60 mb-1">Sobrante</p>
+                            <p className="text-2xl font-bold text-blue-600">{currency}{dashboardData.profitAfterProviderCost.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
+                        </div>
+                        <div className="bg-white/80 rounded-xl p-4 border border-[#FFD95E]/20">
+                            <p className="text-sm text-[#1A1A1A]/60 mb-1">Ganancias Plataforma (50%)</p>
+                            <p className="text-2xl font-bold text-[#FFD95E]">{currency}{platformCommission.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
+                        </div>
+                        <div className="bg-white/80 rounded-xl p-4 border border-[#00C6A2]/30">
+                            <p className="text-sm text-[#1A1A1A]/60 mb-1">Tus Ganancias (50%)</p>
+                            <p className="text-2xl font-bold text-[#00C6A2]">{currency}{vendorEarnings.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
+                        </div>
                     </div>
                 </div>
-            </div>
+            ) : (
+                <div className="bg-gradient-to-br from-[#00C6A2]/10 to-[#FFD95E]/10 border border-[#00C6A2]/20 rounded-2xl p-6 mb-8 shadow-sm">
+                    <h2 className="text-xl font-bold text-[#1A1A1A] mb-4">Calculadora de Comisiones</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="bg-white/80 rounded-xl p-4 border border-[#00C6A2]/20">
+                            <p className="text-sm text-[#1A1A1A]/60 mb-1">Ingresos Totales</p>
+                            <p className="text-2xl font-bold text-[#1A1A1A]">{currency}{dashboardData.totalRevenue.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
+                        </div>
+                        <div className="bg-white/80 rounded-xl p-4 border border-[#FFD95E]/20">
+                            <p className="text-sm text-[#1A1A1A]/60 mb-1">Comisión Plataforma (15%)</p>
+                            <p className="text-2xl font-bold text-[#FFD95E]">{currency}{platformCommission.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
+                        </div>
+                        <div className="bg-white/80 rounded-xl p-4 border border-[#00C6A2]/30">
+                            <p className="text-sm text-[#1A1A1A]/60 mb-1">Tus Ganancias (85%)</p>
+                            <p className="text-2xl font-bold text-[#00C6A2]">{currency}{vendorEarnings.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <h2 className="text-xl font-bold text-[#1A1A1A] mb-4">Reseñas Totales</h2>
 
