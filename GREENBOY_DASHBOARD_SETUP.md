@@ -25,14 +25,52 @@ Primero, ejecuta la migración para agregar el campo `provider_cost` a la tabla 
 
 ### 2. Configurar el Costo de Proveedor en los Productos
 
-Para cada producto de GreenBoy, necesitas establecer el campo `provider_cost`:
+Para cada producto de GreenBoy, necesitas establecer el campo `provider_cost`. Reemplaza los valores según corresponda:
+
+#### Opción A: Actualizar un producto específico
 
 ```sql
--- Ejemplo: Actualizar el costo de proveedor de un producto
+-- Ejemplo: Actualizar el costo de proveedor de un producto específico
+-- Reemplaza 'product-uuid-here' con el UUID real del producto
+-- Reemplaza 100.00 con el costo real del proveedor
 UPDATE products
-SET provider_cost = 100.00  -- Costo que se paga al proveedor
+SET provider_cost = 100.00
 WHERE id = 'product-uuid-here'
-  AND vendor_id = 'f64fcf18-037f-47d8-b58a-9365cb62caf2';  -- GreenBoy ID
+  AND vendor_id = 'f64fcf18-037f-47d8-b58a-9365cb62caf2';
+```
+
+#### Opción B: Actualizar todos los productos de GreenBoy con el mismo costo
+
+```sql
+-- Ejemplo: Establecer el mismo costo de proveedor para todos los productos de GreenBoy
+-- Reemplaza 100.00 con el costo real del proveedor
+UPDATE products
+SET provider_cost = 100.00
+WHERE vendor_id = 'f64fcf18-037f-47d8-b58a-9365cb62caf2';
+```
+
+#### Opción C: Ver productos de GreenBoy para obtener sus IDs
+
+```sql
+-- Primero, lista los productos de GreenBoy para ver sus IDs y precios actuales
+SELECT id, name, price, provider_cost
+FROM products
+WHERE vendor_id = 'f64fcf18-037f-47d8-b58a-9365cb62caf2'
+ORDER BY name;
+```
+
+#### Opción D: Actualizar múltiples productos con diferentes costos
+
+```sql
+-- Ejemplo: Actualizar varios productos con sus costos específicos
+UPDATE products
+SET provider_cost = CASE
+  WHEN id = 'product-uuid-1' THEN 50.00
+  WHEN id = 'product-uuid-2' THEN 75.00
+  WHEN id = 'product-uuid-3' THEN 100.00
+  ELSE provider_cost
+END
+WHERE vendor_id = 'f64fcf18-037f-47d8-b58a-9365cb62caf2';
 ```
 
 ### 3. Verificar el Dashboard
