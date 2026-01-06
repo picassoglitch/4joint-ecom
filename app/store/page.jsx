@@ -103,26 +103,74 @@ export default function Dashboard() {
                             .from('order_items')
                             .select(`
                                 quantity,
-                                variant
+                                variant,
+                                product:products (
+                                    id,
+                                    variants
+                                )
                             `)
                             .in('order_id', orderIds)
                         
                         if (!itemsError && orderItems) {
+                            console.log('📊 GreenBoy Dashboard - Order Items:', orderItems.length)
+                            
                             // Calculate total provider cost from variants
                             // For GreenBoy, provider_cost is stored in each variant
                             totalProviderCost = orderItems.reduce((sum, item) => {
-                                const variant = typeof item.variant === 'string' 
-                                    ? JSON.parse(item.variant) 
-                                    : item.variant
-                                
-                                // Get provider_cost from variant (for GreenBoy) or default to 0
-                                const providerCost = parseFloat(variant?.provider_cost || 0)
-                                const quantity = parseInt(item.quantity || 1)
-                                return sum + (providerCost * quantity)
+                                try {
+                                    // Parse variant if it's a string
+                                    let variant = null
+                                    if (item.variant) {
+                                        variant = typeof item.variant === 'string' 
+                                            ? JSON.parse(item.variant) 
+                                            : item.variant
+                                    }
+                                    
+                                    let providerCost = 0
+                                    
+                                    // If variant exists and has provider_cost, use it
+                                    if (variant && variant.provider_cost !== undefined) {
+                                        providerCost = parseFloat(variant.provider_cost || 0)
+                                    } else if (item.product?.variants && Array.isArray(item.product.variants)) {
+                                        // Fallback: Find variant in product by name
+                                        if (variant && variant.name) {
+                                            const productVariant = item.product.variants.find(
+                                                v => v.name === variant.name
+                                            )
+                                            if (productVariant && productVariant.provider_cost !== undefined) {
+                                                providerCost = parseFloat(productVariant.provider_cost || 0)
+                                            }
+                                        }
+                                    }
+                                    
+                                    const quantity = parseInt(item.quantity || 1)
+                                    const itemCost = providerCost * quantity
+                                    
+                                    if (process.env.NODE_ENV !== 'production') {
+                                        console.log('Item provider cost:', {
+                                            variantName: variant?.name,
+                                            providerCost,
+                                            quantity,
+                                            itemCost
+                                        })
+                                    }
+                                    
+                                    return sum + itemCost
+                                } catch (error) {
+                                    console.error('Error calculating provider cost for item:', error, item)
+                                    return sum
+                                }
                             }, 0)
+                            
+                            console.log('💰 GreenBoy Dashboard - Total Provider Cost:', totalProviderCost)
+                            console.log('💰 GreenBoy Dashboard - Total Revenue:', totalRevenue)
                             
                             // Calculate profit after provider cost
                             profitAfterProviderCost = totalRevenue - totalProviderCost
+                            
+                            console.log('💰 GreenBoy Dashboard - Profit After Provider Cost:', profitAfterProviderCost)
+                        } else if (itemsError) {
+                            console.error('Error fetching order items for GreenBoy dashboard:', itemsError)
                         }
                     }
                 }
