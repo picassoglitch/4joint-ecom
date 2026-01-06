@@ -119,7 +119,7 @@ Fecha: ${new Date(order.created_at).toLocaleString('es-MX')}
       }));
 
       const telegramMessage = formatOrderNotification(order, formattedItems);
-      const telegramResult = await sendTelegramNotification(vendorId, telegramMessage, 'newOrder');
+      const telegramResult = await sendTelegramNotification(vendorId, telegramMessage, 'newOrder', order.id, order);
       
       if (telegramResult.success) {
         console.log(`✅ Telegram notification sent successfully to vendor ${vendorId}`)

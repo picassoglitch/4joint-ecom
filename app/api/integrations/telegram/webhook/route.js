@@ -21,6 +21,21 @@ export async function POST(request) {
       }
     }
 
+    // Handle callback queries (button clicks) - redirect to callback handler
+    if (body.callback_query) {
+      console.log('📞 Callback query received, redirecting to callback handler')
+      // Forward to callback handler
+      const callbackResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/integrations/telegram/callback`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(secretToken ? { 'X-Telegram-Bot-Api-Secret-Token': secretToken } : {}),
+        },
+        body: JSON.stringify(body),
+      })
+      return callbackResponse
+    }
+
     // Handle message updates
     if (body.message) {
       const message = body.message

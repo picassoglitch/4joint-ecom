@@ -2,7 +2,7 @@
 import ProductCard from "@/components/ProductCard"
 import { useParams } from "next/navigation"
 import { useEffect, useState } from "react"
-import { MapPinIcon } from "lucide-react"
+import { MailIcon, MapPinIcon } from "lucide-react"
 import Loading from "@/components/Loading"
 import Image from "next/image"
 import { getProducts } from "@/lib/supabase/database"
@@ -17,38 +17,16 @@ export default function StoreShop() {
 
     const fetchStoreData = async () => {
         try {
-            // Try to get vendor by username first, then by ID if username doesn't work
-            let vendor = null
-            let vendorError = null
-            
-            // First try by username
-            const { data: vendorByUsername, error: errorByUsername } = await supabase
+            // Get vendor by username
+            const { data: vendor, error: vendorError } = await supabase
                 .from('vendors')
                 .select('*')
                 .eq('username', username)
                 .eq('approved', true)
                 .single()
 
-            if (vendorByUsername && !errorByUsername) {
-                vendor = vendorByUsername
-            } else {
-                // If username doesn't work, try by ID (in case username is not set)
-                const { data: vendorById, error: errorById } = await supabase
-                    .from('vendors')
-                    .select('*')
-                    .eq('id', username) // username param might actually be an ID
-                    .eq('approved', true)
-                    .single()
-                
-                if (vendorById && !errorById) {
-                    vendor = vendorById
-                } else {
-                    vendorError = errorById || errorByUsername
-                }
-            }
-
             if (vendorError || !vendor) {
-                console.error('Error fetching vendor:', vendorError || { message: 'Vendor not found' })
+                console.error('Error fetching vendor:', vendorError)
                 setLoading(false)
                 return
             }
@@ -119,6 +97,11 @@ export default function StoreShop() {
                                 <MapPinIcon className="w-4 h-4 text-gray-500 mr-2" />
                                 <span>{storeInfo.address}</span>
                             </div>
+                            <div className="flex items-center">
+                                <MailIcon className="w-4 h-4 text-gray-500 mr-2" />
+                                <span>{storeInfo.email}</span>
+                            </div>
+                           
                         </div>
                     </div>
                 </div>

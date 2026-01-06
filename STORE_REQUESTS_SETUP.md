@@ -165,3 +165,4 @@ SUPABASE_SERVICE_ROLE_KEY=tu_service_role_key  # IMPORTANTE: Necesario para crea
 - `supabase/migration_store_requests_rls.sql` - SQL para configurar RLS
 
 
+

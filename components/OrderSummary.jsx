@@ -474,15 +474,20 @@ const OrderSummary = ({ totalPrice, items }) => {
     const handlePlaceOrder = async (e) => {
         e.preventDefault();
         
-        // Validate guest info if not logged in
+        // Validate only essential fields - allow optional fields to be empty
         if (!user) {
-            if (!guestEmail || !guestName || !guestPhone) {
-                toast.error('Por favor completa tu información de contacto');
+            // Only require email for guest checkout (for order confirmation)
+            if (!guestEmail || guestEmail.trim() === '') {
+                toast.error('Por favor ingresa tu email para confirmar el pedido');
                 return;
             }
-            if (!guestAddress.street || !guestAddress.city || !guestAddress.state || !guestAddress.zip) {
-                toast.error('Por favor completa tu dirección de envío');
-                return;
+            // Name and phone are optional but recommended
+            // Address is only required if delivery is selected
+            if (fulfillmentType === 'delivery' || fulfillmentType === 'courierExterno') {
+                if (!guestAddress.street || !guestAddress.city || !guestAddress.state || !guestAddress.zip) {
+                    toast.error('Por favor completa tu dirección de envío');
+                    return;
+                }
             }
             
             // Auto-register the user before placing order
@@ -536,17 +541,19 @@ const OrderSummary = ({ totalPrice, items }) => {
             setIsPlacingOrder(true);
         }
         
-        // Validate address
-        if (!user && (!guestAddress.street || !guestAddress.city || !guestAddress.state || !guestAddress.zip)) {
-            toast.error('Por favor completa tu dirección de envío');
-            setIsPlacingOrder(false);
-            return;
-        }
-        
-        if (user && !selectedAddress && addressList.length === 0) {
-            toast.error('Por favor agrega una dirección de envío');
-            setIsPlacingOrder(false);
-            return;
+        // Validate address only if delivery is required
+        if (fulfillmentType === 'delivery' || fulfillmentType === 'courierExterno') {
+            if (!user && (!guestAddress.street || !guestAddress.city || !guestAddress.state || !guestAddress.zip)) {
+                toast.error('Por favor completa tu dirección de envío');
+                setIsPlacingOrder(false);
+                return;
+            }
+            
+            if (user && !selectedAddress && addressList.length === 0) {
+                toast.error('Por favor agrega una dirección de envío');
+                setIsPlacingOrder(false);
+                return;
+            }
         }
         
         // Get customer zip code for service area validation
@@ -736,7 +743,8 @@ const OrderSummary = ({ totalPrice, items }) => {
                 
                 // Notify vendor about new order (async, don't wait for it)
                 try {
-                    await fetch('/api/notify-vendor', {
+                    console.log(`📧 Notifying vendor ${order.vendor_id} about order ${order.id}`)
+                    const notifyResponse = await fetch('/api/notify-vendor', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -745,11 +753,17 @@ const OrderSummary = ({ totalPrice, items }) => {
                             orderId: order.id,
                             vendorId: order.vendor_id,
                         }),
-                    }).catch(err => {
-                        console.error('Error notifying vendor (non-blocking):', err);
-                    });
+                    })
+                    
+                    if (!notifyResponse.ok) {
+                        const errorData = await notifyResponse.json().catch(() => ({}))
+                        console.error('❌ Notification API error:', errorData)
+                    } else {
+                        const result = await notifyResponse.json()
+                        console.log('✅ Notification sent:', result)
+                    }
                 } catch (notifyError) {
-                    console.error('Error notifying vendor (non-blocking):', notifyError);
+                    console.error('❌ Error notifying vendor (non-blocking):', notifyError);
                     // Don't fail the order if notification fails
                 }
             } catch (createItemsError) {

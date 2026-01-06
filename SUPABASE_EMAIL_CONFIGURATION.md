@@ -195,3 +195,4 @@ Si tienes problemas con la configuración:
 3. Asegúrate de que tu dominio esté verificado si usas SMTP personalizado
 
 
+
