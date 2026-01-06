@@ -109,21 +109,18 @@ export default function StoreOrders() {
                 return
             }
 
-            // Get session token for API call
-            const { createClient } = await import('@supabase/supabase-js')
-            const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-            const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+            // Get session token using the configured Supabase client
+            const { supabase } = await import('@/lib/supabase/client')
+            const { data: { session }, error: sessionError } = await supabase.auth.getSession()
             
-            if (!supabaseUrl || !supabaseAnonKey) {
-                toast.error('Error de configuración')
+            if (sessionError) {
+                console.error('Error getting session:', sessionError)
+                toast.error('Error de autenticación. Por favor, inicia sesión nuevamente.')
                 return
             }
-
-            const supabase = createClient(supabaseUrl, supabaseAnonKey)
-            const { data: { session } } = await supabase.auth.getSession()
             
             if (!session?.access_token) {
-                toast.error('Error de autenticación')
+                toast.error('Error de autenticación. Por favor, inicia sesión nuevamente.')
                 return
             }
 
