@@ -150,9 +150,15 @@ export default function EditStore() {
             return
         }
 
-        // Check if chat_id and enabled are set locally
-        if (!storeInfo.telegramChatId || !storeInfo.telegramEnabled) {
-            toast.error('Por favor ingresa tu Chat ID, habilita las notificaciones y guarda los cambios primero.')
+        // Check if Chat ID is filled
+        if (!storeInfo.telegramChatId || storeInfo.telegramChatId.trim() === '') {
+            toast.error('Por favor ingresa tu Chat ID de Telegram primero.')
+            return
+        }
+
+        // Check if notifications are enabled
+        if (!storeInfo.telegramEnabled) {
+            toast.error('Por favor habilita las notificaciones de Telegram primero.')
             return
         }
 
@@ -163,6 +169,24 @@ export default function EditStore() {
             if (!session) {
                 throw new Error('No estás autenticado. Por favor inicia sesión.')
             }
+
+            // First, save the current Chat ID and enabled status to database
+            toast.loading('Guardando configuración de Telegram...', { id: 'save-telegram' })
+            
+            const updateData = {
+                telegram_chat_id: storeInfo.telegramChatId.trim(),
+                telegram_enabled: storeInfo.telegramEnabled,
+                notification_prefs: storeInfo.notificationPrefs,
+            }
+
+            await updateVendor(updateData)
+            toast.success('Configuración guardada', { id: 'save-telegram' })
+
+            // Wait a moment for the database to update
+            await new Promise(resolve => setTimeout(resolve, 500))
+
+            // Now try to send test notification
+            toast.loading('Enviando notificación de prueba...', { id: 'test-telegram' })
 
             const response = await fetch(`/api/stores/${storeId}/telegram/test`, {
                 method: 'POST',
@@ -177,17 +201,22 @@ export default function EditStore() {
             if (!response.ok) {
                 // Provide more helpful error messages
                 if (data.error?.includes('no está conectado') || data.error?.includes('not connected')) {
-                    toast.error('Telegram no está conectado. Por favor guarda los cambios primero (el Chat ID debe estar guardado en la base de datos).', { duration: 6000 })
+                    toast.error('Error: El Chat ID no se guardó correctamente. Por favor intenta de nuevo.', { id: 'test-telegram', duration: 6000 })
+                } else if (data.error?.includes('deshabilitadas')) {
+                    toast.error('Las notificaciones están deshabilitadas. Por favor habilítalas y guarda los cambios.', { id: 'test-telegram', duration: 6000 })
                 } else {
-                    throw new Error(data.error || 'Error al enviar notificación de prueba')
+                    toast.error(data.error || 'Error al enviar notificación de prueba', { id: 'test-telegram' })
                 }
                 return
             }
 
-            toast.success('Notificación de prueba enviada. Revisa tu Telegram.')
+            toast.success('✅ Notificación de prueba enviada. Revisa tu Telegram.', { id: 'test-telegram' })
+            
+            // Refresh store info to sync with database
+            await fetchStoreInfo()
         } catch (error) {
             console.error('Error testing Telegram:', error)
-            toast.error(error.message || 'Error al enviar notificación de prueba')
+            toast.error(error.message || 'Error al enviar notificación de prueba', { id: 'test-telegram' })
         } finally {
             setTelegramLoading(false)
         }
