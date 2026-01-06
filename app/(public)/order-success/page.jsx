@@ -29,15 +29,16 @@ function OrderSuccessContent() {
             const order = await getOrderById(id)
             setOrderInfo(order)
             
-            // If courier externo, get store contact info
+            // If courier externo, get store contact info and verify it's enabled
             if (order?.fulfillment_type === 'courierExterno' && order?.vendor_id) {
                 const { data: vendor } = await supabase
                     .from('vendors')
-                    .select('contact, name')
+                    .select('contact, name, fulfillment_modes')
                     .eq('id', order.vendor_id)
                     .single()
                 
-                if (vendor?.contact) {
+                // Only show WhatsApp if store has courierExterno enabled and has contact
+                if (vendor?.contact && vendor?.fulfillment_modes?.courierExterno) {
                     setStoreContact({
                         contact: vendor.contact,
                         storeName: vendor.name
