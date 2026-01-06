@@ -38,6 +38,11 @@ CREATE INDEX IF NOT EXISTS idx_telegram_tokens_used_at ON public.telegram_connec
 ALTER TABLE public.telegram_connect_tokens ENABLE ROW LEVEL SECURITY;
 
 -- Step 5: Create RLS policies for telegram_connect_tokens
+-- Drop existing policies if they exist (idempotent)
+DROP POLICY IF EXISTS "Store owners can create tokens for their store" ON public.telegram_connect_tokens;
+DROP POLICY IF EXISTS "Store owners can view their own tokens" ON public.telegram_connect_tokens;
+DROP POLICY IF EXISTS "Allow token updates for webhook" ON public.telegram_connect_tokens;
+
 -- Policy: Store owners can create tokens for their own store
 -- Note: vendors.id IS the user_id (it references auth.users(id))
 CREATE POLICY "Store owners can create tokens for their store"
@@ -97,6 +102,9 @@ CREATE INDEX IF NOT EXISTS idx_telegram_logs_success ON public.telegram_notifica
 ALTER TABLE public.telegram_notification_logs ENABLE ROW LEVEL SECURITY;
 
 -- Step 9: Create RLS policies for telegram_notification_logs
+-- Drop existing policy if it exists (idempotent)
+DROP POLICY IF EXISTS "Store owners can view their notification logs" ON public.telegram_notification_logs;
+
 -- Policy: Store owners can view their own notification logs
 -- Note: vendors.id IS the user_id (it references auth.users(id))
 CREATE POLICY "Store owners can view their notification logs"
