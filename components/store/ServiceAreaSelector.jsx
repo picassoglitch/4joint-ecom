@@ -27,6 +27,7 @@ export default function ServiceAreaSelector({
   const [colonias, setColonias] = useState([])
   const [loadingDelegaciones, setLoadingDelegaciones] = useState(false)
   const [loadingColonias, setLoadingColonias] = useState(false)
+  const [isInitializing, setIsInitializing] = useState(true) // Track initialization to prevent flash
   
   // NEW: Search state
   const [searchQuery, setSearchQuery] = useState('')
@@ -46,18 +47,35 @@ export default function ServiceAreaSelector({
   const hasRestoredDelegaciones = useRef(false)
   
   // Sync local state with prop changes
+  // Use JSON.stringify to create a stable reference, but only include length in dependencies
+  const selectedColoniasLength = (selectedColonias || []).length
+  const selectedColoniasString = JSON.stringify(selectedColonias || [])
+  
   useEffect(() => {
     setLocalSelectedColonias(selectedColonias || [])
     // Reset restoration flag when selectedColonias changes externally
     if (selectedColonias && selectedColonias.length > 0) {
       hasRestoredDelegaciones.current = false
     }
-  }, [selectedColonias])
+  }, [selectedColoniasLength, selectedColoniasString])
 
   // Restore selected delegaciones based on existing colonias when component loads
   useEffect(() => {
-    if (hasRestoredDelegaciones.current) return
-    if (delegaciones.length === 0 || localSelectedColonias.length === 0) return
+    if (hasRestoredDelegaciones.current) {
+      setIsInitializing(false) // Mark as initialized if already restored
+      return
+    }
+    if (delegaciones.length === 0) {
+      // Still loading delegaciones, keep initializing
+      return
+    }
+    
+    // If no selected colonias, we're done initializing
+    if (localSelectedColonias.length === 0) {
+      hasRestoredDelegaciones.current = true
+      setIsInitializing(false)
+      return
+    }
     
     const restoreDelegaciones = async () => {
       hasRestoredDelegaciones.current = true
@@ -97,15 +115,19 @@ export default function ServiceAreaSelector({
         const firstDelegacionId = Array.from(restoredDelegaciones)[0]
         setSelectedDelegacion(firstDelegacionId)
       }
+      
+      // Mark as initialized after restoration is complete
+      setIsInitializing(false)
     }
     
     restoreDelegaciones()
-  }, [delegaciones, localSelectedColonias])
+  }, [delegaciones.length, localSelectedColonias.length])
 
   // Fetch delegaciones from API
   useEffect(() => {
     const fetchDelegaciones = async () => {
       setLoadingDelegaciones(true)
+      setIsInitializing(true) // Start initializing
       try {
         const response = await fetch(`/api/zip-codes/delegaciones?estado=${estado}`)
         if (!response.ok) {
@@ -131,27 +153,38 @@ export default function ServiceAreaSelector({
         setDelegaciones([])
       } finally {
         setLoadingDelegaciones(false)
+        // If no selected colonias, we're done initializing
+        if (localSelectedColonias.length === 0) {
+          setIsInitializing(false)
+        }
       }
     }
 
     fetchDelegaciones()
-  }, [estado])
+  }, [estado, localSelectedColonias.length])
+
+  // Get delegacion name using useMemo to avoid including array in dependencies
+  const selectedDelegacionName = useMemo(() => {
+    if (!selectedDelegacion || delegaciones.length === 0) return null
+    return delegaciones.find(d => d.id === selectedDelegacion)?.name || null
+  }, [selectedDelegacion, delegaciones.length])
 
   // Fetch colonias when a delegacion is selected for viewing
   useEffect(() => {
-    if (!selectedDelegacion) {
+    if (!selectedDelegacion || !selectedDelegacionName) {
       setColonias([])
+      // If we're initializing and no delegacion is selected, we're done
+      if (isInitializing && localSelectedColonias.length === 0) {
+        setIsInitializing(false)
+      }
       return
     }
 
     const fetchColonias = async () => {
       setLoadingColonias(true)
       try {
-        const delegacionName = delegaciones.find(d => d.id === selectedDelegacion)?.name
-        if (!delegacionName) return
-
         const response = await fetch(
-          `/api/zip-codes/colonias?delegacion=${encodeURIComponent(delegacionName)}&estado=${estado}`
+          `/api/zip-codes/colonias?delegacion=${encodeURIComponent(selectedDelegacionName)}&estado=${estado}`
         )
         const data = await response.json()
         // Ensure UTF-8 encoding
@@ -166,7 +199,7 @@ export default function ServiceAreaSelector({
           const coloniasWithDelegacion = coloniasData.map(c => ({
             ...c,
             delegacionId: selectedDelegacion,
-            delegacionName: delegacionName
+            delegacionName: selectedDelegacionName
           }))
           setAllColoniasCache(prev => {
             // Merge, avoiding duplicates
@@ -174,16 +207,22 @@ export default function ServiceAreaSelector({
             return [...existing, ...coloniasWithDelegacion]
           })
         }
+        
+        // If we're initializing and this is the first delegacion being loaded, mark as done
+        if (isInitializing && selectedDelegaciones.length > 0) {
+          setIsInitializing(false)
+        }
       } catch (error) {
         console.error('Error fetching colonias:', error)
         setColonias([])
+        if (isInitializing) setIsInitializing(false)
       } finally {
         setLoadingColonias(false)
       }
     }
 
     fetchColonias()
-  }, [selectedDelegacion, delegaciones, estado])
+  }, [selectedDelegacion, selectedDelegacionName, estado, isInitializing, selectedDelegaciones.length, localSelectedColonias.length])
 
   // When selectedDelegaciones changes, update the dropdown
   useEffect(() => {
@@ -423,6 +462,19 @@ export default function ServiceAreaSelector({
     return grouped
   }, [selectedColoniasData])
 
+  // Calculate displayed colonias based on view mode (all or only selected)
+  const displayedColonias = useMemo(() => {
+    if (!selectedDelegacion || colonias.length === 0) return []
+    
+    if (viewOnlySelected) {
+      // Only show selected colonias from current delegación
+      return colonias.filter(colonia => localSelectedColonias.includes(colonia.id))
+    } else {
+      // Show all colonias from current delegación
+      return colonias
+    }
+  }, [colonias, selectedDelegacion, viewOnlySelected, localSelectedColonias])
+
   const handleDelegacionChange = (delegacionId) => {
     setSelectedDelegacion(delegacionId)
   }
@@ -506,11 +558,6 @@ export default function ServiceAreaSelector({
     }
   }
 
-  // Filter colonias based on view mode
-  const displayedColonias = useMemo(() => {
-    if (!viewOnlySelected) return colonias
-    return colonias.filter(c => localSelectedColonias.includes(c.id))
-  }, [colonias, localSelectedColonias, viewOnlySelected])
 
   // Check if all colonias of a delegacion are selected
   const isDelegacionCompleta = async (delegacionId) => {
@@ -690,6 +737,17 @@ export default function ServiceAreaSelector({
         }
       }
     }
+  }
+
+  // Show loading state while initializing (loading delegaciones or restoring selected ones)
+  // Also show loading if we're waiting for colonias to load for the selected delegacion
+  if (isInitializing || loadingDelegaciones || (selectedDelegacion && loadingColonias && isInitializing)) {
+    return (
+      <div className="p-6 text-center">
+        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#00C6A2]"></div>
+        <p className="mt-2 text-sm text-[#1A1A1A]/60">Cargando zonas de servicio...</p>
+      </div>
+    )
   }
 
   return (
@@ -888,11 +946,11 @@ export default function ServiceAreaSelector({
           <label className="block text-sm font-medium text-[#1A1A1A] mb-2">
             Seleccionar Colonias de {delegaciones.find(d => d.id === selectedDelegacion)?.name} (puedes seleccionar múltiples)
           </label>
-          {loadingColonias ? (
+          {loadingColonias || (isInitializing && colonias.length === 0) ? (
             <div className="p-4 text-center text-[#1A1A1A]/60">
               Cargando colonias...
             </div>
-          ) : displayedColonias.length > 0 ? (
+          ) : displayedColonias && displayedColonias.length > 0 ? (
             <div className="max-h-60 overflow-y-auto border border-[#00C6A2]/20 rounded-xl p-2 space-y-2">
               {displayedColonias.map(colonia => {
                 const isSelected = localSelectedColonias.includes(colonia.id)
