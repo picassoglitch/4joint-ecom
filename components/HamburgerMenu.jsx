@@ -1,11 +1,12 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { X, ChevronRight } from 'lucide-react'
+import { X, ChevronRight, ShoppingCart, User, LogOut, Package } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { getCategories } from '@/lib/supabase/database'
+import { isAdmin, isVendor } from '@/lib/supabase/auth'
 import Link from 'next/link'
 
-export default function HamburgerMenu({ isOpen, onClose }) {
+export default function HamburgerMenu({ isOpen, onClose, user, cartCount = 0, onSignOut, onOpenAuth }) {
     const router = useRouter()
     const [categories, setCategories] = useState([])
     const [loading, setLoading] = useState(true)
@@ -58,26 +59,116 @@ export default function HamburgerMenu({ isOpen, onClose }) {
                 </div>
 
                 <div className="py-2">
+                    {/* User Account Section (Mobile) */}
+                    <div className="px-4 py-2 border-b border-slate-200">
+                        {user ? (
+                            <div className="space-y-2">
+                                <div className="flex items-center gap-3 px-4 py-3 bg-slate-50 rounded-lg">
+                                    <div className="w-10 h-10 rounded-full bg-[#00C6A2]/20 flex items-center justify-center">
+                                        <User size={20} className="text-[#00C6A2]" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium text-[#1A1A1A] truncate">
+                                            {user.email?.split('@')[0] || 'Usuario'}
+                                        </p>
+                                        <p className="text-xs text-slate-500 truncate">
+                                            {user.email}
+                                        </p>
+                                    </div>
+                                </div>
+                                
+                                <div className="space-y-1">
+                                    {isAdmin(user) && (
+                                        <Link
+                                            href="/admin"
+                                            onClick={onClose}
+                                            className="flex items-center gap-3 py-3 px-4 hover:bg-slate-50 rounded-lg transition-colors font-medium text-[#1A1A1A] min-h-[44px] touch-manipulation"
+                                        >
+                                            <span>Admin</span>
+                                        </Link>
+                                    )}
+                                    {isVendor(user) && (
+                                        <Link
+                                            href="/store"
+                                            onClick={onClose}
+                                            className="flex items-center gap-3 py-3 px-4 hover:bg-slate-50 rounded-lg transition-colors font-medium text-[#1A1A1A] min-h-[44px] touch-manipulation"
+                                        >
+                                            <span>Mi Tienda</span>
+                                        </Link>
+                                    )}
+                                    <Link
+                                        href="/orders"
+                                        onClick={onClose}
+                                        className="flex items-center gap-3 py-3 px-4 hover:bg-slate-50 rounded-lg transition-colors font-medium text-[#1A1A1A] min-h-[44px] touch-manipulation"
+                                    >
+                                        <Package size={18} className="text-[#1A1A1A]" />
+                                        <span>Mis Pedidos</span>
+                                    </Link>
+                                    <button
+                                        onClick={() => {
+                                            onSignOut?.()
+                                            onClose()
+                                        }}
+                                        className="w-full flex items-center gap-3 py-3 px-4 hover:bg-slate-50 rounded-lg transition-colors font-medium text-[#1A1A1A] min-h-[44px] touch-manipulation text-left"
+                                    >
+                                        <LogOut size={18} className="text-[#1A1A1A]" />
+                                        <span>Cerrar Sesión</span>
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <button
+                                onClick={() => {
+                                    onOpenAuth?.()
+                                    onClose()
+                                }}
+                                className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-[#00C6A2] hover:bg-[#00B894] transition-all text-white rounded-lg font-semibold text-base shadow-md hover:shadow-lg min-h-[44px] touch-manipulation"
+                            >
+                                <User size={18} />
+                                <span>Entrar / Iniciar Sesión</span>
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Cart (Mobile) */}
+                    <div className="px-4 py-2 border-b border-slate-200">
+                        <Link
+                            href="/cart"
+                            onClick={onClose}
+                            className="flex items-center justify-between py-3 px-4 hover:bg-slate-50 rounded-lg transition-colors font-medium text-[#1A1A1A] min-h-[44px] touch-manipulation"
+                        >
+                            <div className="flex items-center gap-3">
+                                <ShoppingCart size={20} className="text-[#1A1A1A]" />
+                                <span>Carrito</span>
+                            </div>
+                            {cartCount > 0 && (
+                                <span className="text-sm text-white bg-[#00C6A2] px-2.5 py-1 rounded-full font-bold min-w-[24px] text-center">
+                                    {cartCount}
+                                </span>
+                            )}
+                        </Link>
+                    </div>
+
                     {/* Main Navigation */}
                     <div className="px-4 py-2">
                         <Link
                             href="/"
                             onClick={onClose}
-                            className="block py-3 px-4 hover:bg-slate-50 rounded-lg transition-colors font-medium text-[#1A1A1A]"
+                            className="block py-3 px-4 hover:bg-slate-50 rounded-lg transition-colors font-medium text-[#1A1A1A] min-h-[44px] flex items-center touch-manipulation"
                         >
                             Inicio
                         </Link>
                         <Link
                             href="/shop"
                             onClick={onClose}
-                            className="block py-3 px-4 hover:bg-slate-50 rounded-lg transition-colors font-medium text-[#1A1A1A]"
+                            className="block py-3 px-4 hover:bg-slate-50 rounded-lg transition-colors font-medium text-[#1A1A1A] min-h-[44px] flex items-center touch-manipulation"
                         >
                             Todos los Productos
                         </Link>
                         <Link
                             href="/tiendas-cerca"
                             onClick={onClose}
-                            className="block py-3 px-4 hover:bg-slate-50 rounded-lg transition-colors font-medium text-[#1A1A1A]"
+                            className="block py-3 px-4 hover:bg-slate-50 rounded-lg transition-colors font-medium text-[#1A1A1A] min-h-[44px] flex items-center touch-manipulation"
                         >
                             Tiendas cerca de ti
                         </Link>

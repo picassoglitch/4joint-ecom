@@ -152,8 +152,8 @@ const Navbar = () => {
                             </div>
                         </form>
 
-                        {/* RIGHT: Account + Cart */}
-                        <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+                        {/* RIGHT: Cart (Desktop only - mobile shows in hamburger menu) */}
+                        <div className="hidden sm:flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
                             <Link 
                                 href="/cart" 
                                 className="relative min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-slate-100 rounded-lg transition-colors touch-manipulation"
@@ -213,8 +213,7 @@ const Navbar = () => {
                                     onClick={() => setAuthModalOpen(true)}
                                     className="px-3 sm:px-4 min-h-[44px] flex items-center justify-center bg-[#00C6A2] hover:bg-[#00B894] transition-all text-white rounded-lg font-semibold text-sm sm:text-base shadow-md hover:shadow-lg hover:scale-105 active:scale-95 touch-manipulation"
                                 >
-                                    <span className="hidden sm:inline">Iniciar Sesión</span>
-                                    <span className="sm:hidden">Entrar</span>
+                                    Iniciar Sesión
                                 </button>
                             )}
                         </div>
@@ -223,7 +222,14 @@ const Navbar = () => {
             </nav>
             
             {/* Hamburger Menu */}
-            <HamburgerMenu isOpen={hamburgerOpen} onClose={() => setHamburgerOpen(false)} />
+            <HamburgerMenu 
+                isOpen={hamburgerOpen} 
+                onClose={() => setHamburgerOpen(false)}
+                user={user}
+                cartCount={cartCount}
+                onSignOut={handleSignOut}
+                onOpenAuth={() => setAuthModalOpen(true)}
+            />
             
             <AuthModal isOpen={authModalOpen} onClose={() => setAuthModalOpen(false)} />
         </>
