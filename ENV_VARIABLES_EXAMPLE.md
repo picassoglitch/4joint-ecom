@@ -11,11 +11,14 @@ SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 # Site URL
 NEXT_PUBLIC_SITE_URL=https://4joint.net
 
-# Mercado Pago
+# Mercado Pago - Checkout Pro
 # ACCESS_TOKEN: Token de acceso para crear preferencias de pago (backend)
-MERCADOPAGO_ACCESS_TOKEN=APP_USR-xxxxxxxxxxxxx-xxxxxx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-xxxxxxxxxx
-# PUBLIC_KEY: Clave pública para integración frontend (si se usa)
-NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY=APP_USR-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+MERCADOPAGO_ACCESS_TOKEN=APP_USR-2380007477498594-120822-d8c6b1e8c32283246dfd2ecd077d1faa-1243156223
+# PUBLIC_KEY: Clave pública para integración frontend (Checkout Pro)
+NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY=APP_USR-bb9c706b-c33d-4581-86ba-88f69b1a14b2
+# User ID: 1243156223
+# Application ID: 2380007477498594
+# Product: Checkout Pro
 
 # Email Notifications (Resend) - ✅ CONFIGURADO
 RESEND_API_KEY=re_DRJZMp9c_4c2eXFBtaa3bKRo4f74fYJvX

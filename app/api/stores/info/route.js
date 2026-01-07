@@ -57,6 +57,8 @@ export async function GET(request) {
       delivery_notes: data.delivery_notes || '',
       service_colonias: data.service_colonias || [],
       contact: data.contact || '', // WhatsApp/contacto de la tienda
+      free_shipping_threshold: data.free_shipping_threshold || 800, // Minimum order amount for free shipping
+      delivery_options: data.delivery_options || [], // Same day, on demand, etc.
     })
   } catch (error) {
     console.error('Error in store info API:', error)

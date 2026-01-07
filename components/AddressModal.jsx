@@ -138,18 +138,25 @@ const AddressModal = ({ setShowAddressModal }) => {
     }
 
     return (
-        <form onSubmit={e => toast.promise(handleSubmit(e), { loading: 'Agregando dirección...' })} className="fixed inset-0 z-50 bg-white/60 backdrop-blur h-screen flex items-center justify-center overflow-y-auto">
-            <div className="flex flex-col gap-5 text-slate-700 w-full max-w-md mx-6 my-8 bg-white rounded-xl p-6 shadow-lg">
+        <form onSubmit={e => toast.promise(handleSubmit(e), { loading: 'Agregando dirección...' })} className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm h-screen flex items-center justify-center overflow-y-auto p-4" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+            <div className="flex flex-col gap-4 sm:gap-5 text-slate-700 w-full max-w-md bg-white rounded-xl p-4 sm:p-6 shadow-lg max-h-[90vh] overflow-y-auto">
                 <div className="flex justify-between items-center">
-                    <h2 className="text-3xl">Agregar Nueva <span className="font-semibold">Dirección</span></h2>
-                    <XIcon size={30} className="text-slate-500 hover:text-slate-700 cursor-pointer" onClick={() => setShowAddressModal(false)} />
+                    <h2 className="text-xl sm:text-2xl md:text-3xl">Agregar Nueva <span className="font-semibold">Dirección</span></h2>
+                    <button 
+                        type="button"
+                        onClick={() => setShowAddressModal(false)} 
+                        className="min-w-[44px] min-h-[44px] flex items-center justify-center text-slate-500 hover:text-slate-700 cursor-pointer touch-manipulation"
+                        aria-label="Cerrar"
+                    >
+                        <XIcon size={24} className="sm:w-[30px] sm:h-[30px]" />
+                    </button>
                 </div>
                 
                 <input 
                     name="name" 
                     onChange={handleAddressChange} 
                     value={address.name} 
-                    className="p-2 px-4 outline-none border border-slate-200 rounded-lg w-full" 
+                    className="p-3 sm:p-2 sm:px-4 outline-none border border-slate-200 rounded-lg w-full text-base min-h-[44px] touch-manipulation" 
                     type="text" 
                     placeholder="Nombre completo *" 
                     required 
@@ -159,7 +166,7 @@ const AddressModal = ({ setShowAddressModal }) => {
                     name="email" 
                     onChange={handleAddressChange} 
                     value={address.email} 
-                    className="p-2 px-4 outline-none border border-slate-200 rounded-lg w-full" 
+                    className="p-3 sm:p-2 sm:px-4 outline-none border border-slate-200 rounded-lg w-full text-base min-h-[44px] touch-manipulation" 
                     type="email" 
                     placeholder="Correo electrónico *" 
                     required 
@@ -169,18 +176,18 @@ const AddressModal = ({ setShowAddressModal }) => {
                     name="street" 
                     onChange={handleAddressChange} 
                     value={address.street} 
-                    className="p-2 px-4 outline-none border border-slate-200 rounded-lg w-full" 
+                    className="p-3 sm:p-2 sm:px-4 outline-none border border-slate-200 rounded-lg w-full text-base min-h-[44px] touch-manipulation" 
                     type="text" 
                     placeholder="Calle y número *" 
                     required 
                 />
                 
-                <div className="flex gap-4">
+                <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                     <input 
                         name="city" 
                         onChange={handleAddressChange} 
                         value={address.city} 
-                        className="p-2 px-4 outline-none border border-slate-200 rounded-lg w-full" 
+                        className="p-3 sm:p-2 sm:px-4 outline-none border border-slate-200 rounded-lg w-full text-base min-h-[44px] touch-manipulation" 
                         type="text" 
                         placeholder="Ciudad *" 
                         required 
@@ -189,19 +196,19 @@ const AddressModal = ({ setShowAddressModal }) => {
                         name="state" 
                         onChange={handleAddressChange} 
                         value={address.state} 
-                        className="p-2 px-4 outline-none border border-slate-200 rounded-lg w-full" 
+                        className="p-3 sm:p-2 sm:px-4 outline-none border border-slate-200 rounded-lg w-full text-base min-h-[44px] touch-manipulation" 
                         type="text" 
                         placeholder="Estado *" 
                         required 
                     />
                 </div>
                 
-                <div className="flex gap-4">
+                <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                     <input 
                         name="zip" 
                         onChange={handleAddressChange} 
                         value={address.zip} 
-                        className="p-2 px-4 outline-none border border-slate-200 rounded-lg w-full" 
+                        className="p-3 sm:p-2 sm:px-4 outline-none border border-slate-200 rounded-lg w-full text-base min-h-[44px] touch-manipulation" 
                         type="text" 
                         placeholder="Código Postal *" 
                         required 
@@ -210,7 +217,7 @@ const AddressModal = ({ setShowAddressModal }) => {
                         name="country" 
                         onChange={handleAddressChange} 
                         value={address.country} 
-                        className="p-2 px-4 outline-none border border-slate-200 rounded-lg w-full" 
+                        className="p-3 sm:p-2 sm:px-4 outline-none border border-slate-200 rounded-lg w-full text-base min-h-[44px] touch-manipulation" 
                         type="text" 
                         placeholder="País *" 
                         required 
@@ -221,7 +228,7 @@ const AddressModal = ({ setShowAddressModal }) => {
                     name="phone" 
                     onChange={handleAddressChange} 
                     value={address.phone} 
-                    className="p-2 px-4 outline-none border border-slate-200 rounded-lg w-full" 
+                    className="p-3 sm:p-2 sm:px-4 outline-none border border-slate-200 rounded-lg w-full text-base min-h-[44px] touch-manipulation" 
                     type="tel" 
                     placeholder="Teléfono *" 
                     required 
@@ -231,12 +238,12 @@ const AddressModal = ({ setShowAddressModal }) => {
                     name="references" 
                     onChange={handleAddressChange} 
                     value={address.references} 
-                    className="p-2 px-4 outline-none border border-slate-200 rounded-lg w-full" 
+                    className="p-3 sm:p-2 sm:px-4 outline-none border border-slate-200 rounded-lg w-full text-base min-h-[80px] touch-manipulation resize-none" 
                     placeholder="Referencias (opcional)"
                     rows="3"
                 />
                 
-                <button className="bg-[#00C6A2] text-white text-sm font-medium py-2.5 rounded-full hover:bg-[#00B894] active:scale-95 transition-all">
+                <button type="submit" className="bg-[#00C6A2] text-white text-sm sm:text-base font-medium py-3 sm:py-2.5 rounded-full hover:bg-[#00B894] active:scale-95 transition-all min-h-[44px] touch-manipulation shadow-md">
                     GUARDAR DIRECCIÓN
                 </button>
             </div>

@@ -170,6 +170,7 @@ export async function POST(request) {
         free_product_id: coupon.free_product_id,
         min_purchase: coupon.min_purchase,
         max_discount: coupon.max_discount,
+        stackable_with_promotions: coupon.stackable_with_promotions !== undefined ? coupon.stackable_with_promotions : true,
       }
     })
   } catch (error) {

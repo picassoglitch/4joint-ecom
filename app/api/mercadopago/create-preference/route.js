@@ -116,13 +116,19 @@ export async function POST(request) {
         } : undefined,
       } : undefined,
       back_urls: {
-        success: String(successUrl), // Ensure it's a string
-        failure: String(failureUrl),
-        pending: String(pendingUrl),
+        success: successUrl, // Must be a valid URL string
+        failure: failureUrl,
+        pending: pendingUrl,
       },
-      // Note: auto_return requires back_urls.success to be defined and valid
-      // For localhost development, we might need to remove auto_return or use ngrok
+      // auto_return: Automatically redirect to success URL after payment approval
+      // Only set if success URL is valid and not localhost
       auto_return: successUrl && !successUrl.includes('localhost') ? 'approved' : undefined,
+      // Payment methods configuration - allow all payment methods (cards, cash, etc.)
+      payment_methods: {
+        excluded_payment_methods: [],
+        excluded_payment_types: [],
+        installments: 12, // Maximum installments allowed
+      },
       external_reference: orderId,
       notification_url: webhookUrl,
       statement_descriptor: '4joint',
@@ -135,8 +141,19 @@ export async function POST(request) {
     console.log('📦 Items:', preferenceItems.length, 'items');
     console.log('💰 Total:', totalFromItems);
     
-    // Log the actual preference data being sent
-    console.log('📋 Full preference data being sent:', JSON.stringify(preferenceData, null, 2));
+    // Validate back_urls before sending
+    if (!preferenceData.back_urls || !preferenceData.back_urls.success) {
+      throw new Error('back_urls.success is required for Mercado Pago. Check NEXT_PUBLIC_SITE_URL configuration.');
+    }
+    
+    // Log the actual preference data being sent (sanitize sensitive data)
+    const logData = {
+      ...preferenceData,
+      items: preferenceItems.map(item => ({ title: item.title, quantity: item.quantity, unit_price: item.unit_price })),
+      payer: preferenceData.payer ? { name: preferenceData.payer.name, email: preferenceData.payer.email } : undefined,
+    };
+    console.log('📋 Preference data being sent:', JSON.stringify(logData, null, 2));
+    console.log('🔗 back_urls:', preferenceData.back_urls);
     console.log('📋 Preference data structure:', JSON.stringify({
       hasItems: !!preferenceData.items,
       itemsCount: preferenceData.items?.length,

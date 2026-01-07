@@ -37,6 +37,11 @@ export default function EditStore() {
         operatingHours: {},
         courierCost: 0,
         courierCostIncluded: false,
+        freeShippingThreshold: 800, // Minimum order amount for free shipping
+        deliveryOptions: [ // Same day, on demand, etc.
+            { id: 'same_day', name: 'Entrega Mismo Día', price: 80, description: 'Lun-Vie antes de 8pm, Sáb antes de 6pm', enabled: true },
+            { id: 'on_demand', name: 'On Demand', price: 150, description: 'Entrega inmediata en 80 min. Lun-Vie antes de 8pm. Solo CDMX', enabled: true }
+        ],
         requireOrderApproval: false, // Require vendor to approve orders before processing
         telegramChatId: null,
         telegramEnabled: false,
@@ -100,6 +105,11 @@ export default function EditStore() {
                     telegramChatId: vendor.telegram_chat_id || null,
                     telegramEnabled: vendor.telegram_enabled || false,
                     notificationPrefs: vendor.notification_prefs || { newOrder: true, lowStock: true, support: true },
+                    freeShippingThreshold: vendor.free_shipping_threshold || 800,
+                    deliveryOptions: vendor.delivery_options || [
+                        { id: 'same_day', name: 'Entrega Mismo Día', price: 80, description: 'Lun-Vie antes de 8pm, Sáb antes de 6pm', enabled: true },
+                        { id: 'on_demand', name: 'On Demand', price: 150, description: 'Entrega inmediata en 80 min. Lun-Vie antes de 8pm. Solo CDMX', enabled: true }
+                    ],
                 })
                 setLogoPreview(vendor.logo || "")
                 setStoreId(vendor.id)
@@ -236,7 +246,7 @@ export default function EditStore() {
                 toast.success('Logo subido exitosamente', { id: 'upload-logo' })
             }
 
-            // Update vendor data
+            // Update vendor data - only include fields that exist in the database
             const updateData = {
                 name: storeInfo.name,
                 description: storeInfo.description,
@@ -261,6 +271,8 @@ export default function EditStore() {
                 telegram_chat_id: storeInfo.telegramChatId || null,
                 telegram_enabled: storeInfo.telegramEnabled || false,
                 notification_prefs: storeInfo.notificationPrefs,
+                free_shipping_threshold: storeInfo.freeShippingThreshold || 800,
+                delivery_options: storeInfo.deliveryOptions || [],
             }
 
             console.log('💾 Saving store data:')
@@ -277,7 +289,14 @@ export default function EditStore() {
             await fetchStoreInfo()
         } catch (error) {
             console.error('Error updating store:', error)
-            toast.error(error.message || 'Error al actualizar la información de la tienda')
+            // Provide more helpful error message
+            const errorMessage = error.message || error.toString() || 'Error desconocido'
+            console.error('Full error details:', {
+                message: errorMessage,
+                error: error,
+                updateData: updateData
+            })
+            toast.error(`Error al actualizar la información: ${errorMessage}`)
         } finally {
             setSaving(false)
         }
@@ -509,6 +528,89 @@ export default function EditStore() {
                             <span className="text-[#1A1A1A]">Courier Externo (Uber/Didi)</span>
                         </label>
                     </div>
+                    
+                    {/* Delivery Options Configuration */}
+                    {storeInfo.fulfillmentModes.delivery && (
+                        <div className="mt-6 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                            <h3 className="text-lg font-semibold text-[#1A1A1A] mb-3">Opciones de Entrega</h3>
+                            
+                            {/* Free Shipping Threshold */}
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium text-[#1A1A1A] mb-2">
+                                    Monto mínimo para envío gratis (MXN)
+                                </label>
+                                <input
+                                    type="number"
+                                    value={storeInfo.freeShippingThreshold || 800}
+                                    onChange={(e) => setStoreInfo({
+                                        ...storeInfo,
+                                        freeShippingThreshold: parseFloat(e.target.value) || 0
+                                    })}
+                                    className="w-full px-4 py-2 rounded-lg border border-[#00C6A2]/20 focus:border-[#00C6A2] focus:ring-2 focus:ring-[#00C6A2]/20 outline-none"
+                                    min="0"
+                                    step="1"
+                                />
+                                <p className="text-xs text-[#1A1A1A]/60 mt-1">
+                                    Los pedidos iguales o mayores a este monto tendrán envío gratis
+                                </p>
+                            </div>
+                            
+                            {/* Delivery Options */}
+                            <div className="space-y-3">
+                                {storeInfo.deliveryOptions?.map((option, index) => (
+                                    <div key={option.id || index} className="p-3 bg-white rounded-lg border border-slate-200">
+                                        <div className="flex items-center gap-3 mb-3">
+                                            <input
+                                                type="checkbox"
+                                                checked={option.enabled !== false}
+                                                onChange={(e) => {
+                                                    const updatedOptions = [...storeInfo.deliveryOptions];
+                                                    updatedOptions[index] = { ...option, enabled: e.target.checked };
+                                                    setStoreInfo({ ...storeInfo, deliveryOptions: updatedOptions });
+                                                }}
+                                                className="w-5 h-5 rounded border-[#00C6A2] text-[#00C6A2] focus:ring-[#00C6A2]"
+                                            />
+                                            <span className="font-medium text-[#1A1A1A]">{option.name}</span>
+                                        </div>
+                                        
+                                        {option.enabled !== false && (
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 ml-8">
+                                                <div>
+                                                    <label className="block text-xs text-[#1A1A1A]/70 mb-1">Precio (MXN)</label>
+                                                    <input
+                                                        type="number"
+                                                        value={option.price || 0}
+                                                        onChange={(e) => {
+                                                            const updatedOptions = [...storeInfo.deliveryOptions];
+                                                            updatedOptions[index] = { ...option, price: parseFloat(e.target.value) || 0 };
+                                                            setStoreInfo({ ...storeInfo, deliveryOptions: updatedOptions });
+                                                        }}
+                                                        className="w-full px-3 py-2 rounded border border-slate-300 focus:border-[#00C6A2] focus:ring-1 focus:ring-[#00C6A2]/20 outline-none text-sm"
+                                                        min="0"
+                                                        step="0.01"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs text-[#1A1A1A]/70 mb-1">Descripción</label>
+                                                    <input
+                                                        type="text"
+                                                        value={option.description || ''}
+                                                        onChange={(e) => {
+                                                            const updatedOptions = [...storeInfo.deliveryOptions];
+                                                            updatedOptions[index] = { ...option, description: e.target.value };
+                                                            setStoreInfo({ ...storeInfo, deliveryOptions: updatedOptions });
+                                                        }}
+                                                        className="w-full px-3 py-2 rounded border border-slate-300 focus:border-[#00C6A2] focus:ring-1 focus:ring-[#00C6A2]/20 outline-none text-sm"
+                                                        placeholder="Ej: Lun-Vie antes de 8pm"
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Order Approval Settings */}

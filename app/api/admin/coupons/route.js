@@ -65,6 +65,7 @@ export async function POST(request) {
       is_public,
       applicable_vendor_ids,
       max_uses,
+      stackable_with_promotions,
       expires_at
     } = body
 
@@ -191,6 +192,7 @@ export async function POST(request) {
         ? JSON.stringify(applicable_vendor_ids) 
         : null,
       max_uses: max_uses ? parseInt(max_uses) : null,
+      stackable_with_promotions: stackable_with_promotions !== undefined ? stackable_with_promotions : true,
       used_count: 0,
       expires_at: expires_at,
     }

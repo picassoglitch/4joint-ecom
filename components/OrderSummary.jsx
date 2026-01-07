@@ -71,20 +71,32 @@ const OrderSummary = ({ totalPrice, items }) => {
     const [fulfillmentType, setFulfillmentType] = useState(null); // 'pickup', 'delivery', 'meetupPoint', 'courierExterno'
     const [selectedMeetupPoint, setSelectedMeetupPoint] = useState(null);
     const [storeInfo, setStoreInfo] = useState(null);
-    const deliveryOptions = [
-        {
-            id: 'same_day',
-            name: 'Entrega Mismo Día',
-            price: 80,
-            description: 'Lun-Vie antes de 8pm, Sáb antes de 6pm'
-        },
-        {
-            id: 'on_demand',
-            name: 'On Demand',
-            price: 150,
-            description: 'Entrega inmediata en 80 min. Lun-Vie antes de 8pm. Solo CDMX'
+    
+    // Delivery options will be loaded from storeInfo.delivery_options if available
+    // Fallback to default options if not configured
+    const getDeliveryOptions = () => {
+        if (storeInfo?.delivery_options && Array.isArray(storeInfo.delivery_options) && storeInfo.delivery_options.length > 0) {
+            // Filter only enabled options
+            return storeInfo.delivery_options.filter(opt => opt.enabled !== false);
         }
-    ];
+        // Default fallback options
+        return [
+            {
+                id: 'same_day',
+                name: 'Entrega Mismo Día',
+                price: 80,
+                description: 'Lun-Vie antes de 8pm, Sáb antes de 6pm'
+            },
+            {
+                id: 'on_demand',
+                name: 'On Demand',
+                price: 150,
+                description: 'Entrega inmediata en 80 min. Lun-Vie antes de 8pm. Solo CDMX'
+            }
+        ];
+    };
+    
+    const deliveryOptions = getDeliveryOptions();
     
     // Tip options
     const [tipType, setTipType] = useState('percentage'); // 'percentage' or 'custom'
@@ -350,17 +362,28 @@ const OrderSummary = ({ totalPrice, items }) => {
     };
 
     const calculateTip = () => {
-        const subtotal = totalPrice;
-        const couponDiscount = calculateCouponDiscount(subtotal);
-        const subtotalAfterCoupon = subtotal - couponDiscount;
+        // Calculate tip based on subtotal + delivery + courier (BEFORE coupon)
+        const subtotal = totalPrice; // Original subtotal without coupon
         
-        // Check if free shipping applies (either from coupon or subtotal >= 800)
+        // Check if free shipping applies (based on ORIGINAL subtotal)
+        const freeShippingThreshold = storeInfo?.free_shipping_threshold || 800;
         const isFreeShippingFromCoupon = coupon?.type === 'free_shipping';
-        const isFreeShippingFromAmount = subtotalAfterCoupon >= 800;
+        const isFreeShippingFromAmount = subtotal >= freeShippingThreshold;
         const isFreeShipping = isFreeShippingFromCoupon || isFreeShippingFromAmount;
         
-        const deliveryCost = (deliveryOption && !isFreeShipping) ? deliveryOption.price : 0;
-        const orderSubtotal = subtotalAfterCoupon + deliveryCost;
+        // Calculate delivery cost
+        let deliveryCost = 0;
+        if (deliveryOption) {
+            const isSameDay = deliveryOption.id === 'same_day';
+            if (isFreeShipping && isSameDay) {
+                deliveryCost = 0;
+            } else {
+                deliveryCost = deliveryOption.originalPrice || deliveryOption.price || 0;
+            }
+        }
+        
+        const courierCost = getCourierCost();
+        const orderSubtotal = subtotal + deliveryCost + courierCost;
         
         if (tipType === 'percentage') {
             return (orderSubtotal * tipPercentage) / 100;
@@ -377,33 +400,100 @@ const OrderSummary = ({ totalPrice, items }) => {
     };
 
     const calculateTotal = () => {
-        const subtotal = totalPrice;
-        const couponDiscount = calculateCouponDiscount(subtotal);
-        const subtotalAfterCoupon = subtotal - couponDiscount;
+        // IMPORTANT: Calculate everything BEFORE applying coupon
+        // This ensures free shipping and other calculations are based on original subtotal
         
-        // Check if free shipping applies
+        const subtotal = totalPrice; // Original subtotal without coupon
+        
+        // Check if free shipping applies (based on ORIGINAL subtotal, not after coupon)
+        const freeShippingThreshold = storeInfo?.free_shipping_threshold || 800;
         const isFreeShippingFromCoupon = coupon?.type === 'free_shipping';
-        const isFreeShippingFromAmount = subtotalAfterCoupon >= 800;
+        const isFreeShippingFromAmount = subtotal >= freeShippingThreshold; // Use original subtotal
         const isFreeShipping = isFreeShippingFromCoupon || isFreeShippingFromAmount;
         
-        const deliveryCost = (deliveryOption && !isFreeShipping) ? deliveryOption.price : 0;
+        // Calculate delivery cost (based on free shipping status from original subtotal)
+        let deliveryCost = 0;
+        if (deliveryOption) {
+            const isSameDay = deliveryOption.id === 'same_day';
+            if (isFreeShipping && isSameDay) {
+                deliveryCost = 0; // Free shipping applies to same day
+            } else {
+                // Use original price if available, otherwise use current price
+                deliveryCost = deliveryOption.originalPrice || deliveryOption.price || 0;
+            }
+        }
+        
         const courierCost = getCourierCost();
-        const tip = calculateTip();
-        return subtotalAfterCoupon + deliveryCost + courierCost + tip;
+        
+        // Calculate tip based on subtotal + delivery + courier (before coupon)
+        const orderSubtotal = subtotal + deliveryCost + courierCost;
+        let tip = 0;
+        if (tipType === 'percentage') {
+            tip = (orderSubtotal * tipPercentage) / 100;
+        } else {
+            tip = parseFloat(customTip) || 0;
+        }
+        
+        // Calculate total BEFORE coupon: subtotal + delivery + courier + tip
+        const totalBeforeCoupon = subtotal + deliveryCost + courierCost + tip;
+        
+        // NOW apply coupon discount to the FINAL total
+        // Check if coupon is stackable with other promotions
+        let couponDiscount = 0;
+        if (coupon) {
+            // Check if there are other active promotions (e.g., free shipping from amount threshold)
+            const hasOtherPromotions = isFreeShippingFromAmount && coupon.type !== 'free_shipping';
+            
+            // If coupon is not stackable and there are other promotions, don't apply the coupon
+            if (!coupon.stackable_with_promotions && hasOtherPromotions) {
+                couponDiscount = 0; // Don't apply coupon if not stackable and other promotions exist
+            } else {
+                // For free_shipping coupons, they don't reduce the total, they just make shipping free
+                if (coupon.type === 'free_shipping') {
+                    couponDiscount = 0; // Already handled in deliveryCost calculation
+                } else {
+                    // Apply coupon to the final total (subtotal + delivery + courier + tip)
+                    switch (coupon.type) {
+                        case 'percentage':
+                            couponDiscount = (totalBeforeCoupon * coupon.discount_value) / 100;
+                            if (coupon.max_discount && couponDiscount > coupon.max_discount) {
+                                couponDiscount = coupon.max_discount;
+                            }
+                            break;
+                        case 'fixed_amount':
+                            couponDiscount = Math.min(coupon.discount_value, totalBeforeCoupon);
+                            break;
+                        default:
+                            couponDiscount = 0;
+                    }
+                }
+            }
+        }
+        
+        return totalBeforeCoupon - couponDiscount;
     };
     
     const getDeliveryCost = () => {
-        const subtotal = totalPrice;
-        const couponDiscount = calculateCouponDiscount(subtotal);
-        const subtotalAfterCoupon = subtotal - couponDiscount;
+        // Calculate delivery cost based on ORIGINAL subtotal (before coupon)
+        const subtotal = totalPrice; // Original subtotal without coupon
         
-        // Check if free shipping applies
+        // Check if free shipping applies (based on ORIGINAL subtotal)
+        const freeShippingThreshold = storeInfo?.free_shipping_threshold || 800;
         const isFreeShippingFromCoupon = coupon?.type === 'free_shipping';
-        const isFreeShippingFromAmount = subtotalAfterCoupon >= 800;
+        const isFreeShippingFromAmount = subtotal >= freeShippingThreshold; // Use original subtotal
         const isFreeShipping = isFreeShippingFromCoupon || isFreeShippingFromAmount;
         
-        if (isFreeShipping) return 0;
-        return deliveryOption ? deliveryOption.price : 0;
+        if (!deliveryOption) return 0;
+        
+        // If free shipping applies and "same_day" is selected: $0
+        // If "on_demand" is selected: always charge full price (premium option)
+        const isSameDay = deliveryOption.id === 'same_day';
+        if (isFreeShipping && isSameDay) {
+            return 0; // Free shipping applies to same day
+        }
+        
+        // Use original price if available, otherwise use current price
+        return deliveryOption.originalPrice || deliveryOption.price || 0;
     };
 
     const handleCouponCode = async (event) => {
@@ -460,6 +550,7 @@ const OrderSummary = ({ totalPrice, items }) => {
                 free_product_id: validatedCoupon.free_product_id,
                 min_purchase: validatedCoupon.min_purchase,
                 max_discount: validatedCoupon.max_discount,
+                stackable_with_promotions: validatedCoupon.stackable_with_promotions !== undefined ? validatedCoupon.stackable_with_promotions : true,
             });
 
             toast.success('Cupón aplicado exitosamente');
@@ -473,6 +564,29 @@ const OrderSummary = ({ totalPrice, items }) => {
 
     const handlePlaceOrder = async (e) => {
         e.preventDefault();
+        
+        // CRITICAL VALIDATION: Must select fulfillment type
+        if (!fulfillmentType) {
+            toast.error('Por favor selecciona un tipo de entrega');
+            return;
+        }
+        
+        // CRITICAL VALIDATION: Must have address if delivery is required
+        if (fulfillmentType === 'delivery' || fulfillmentType === 'courierExterno') {
+            if (!user) {
+                // Guest user - check guest address
+                if (!guestAddress.street || !guestAddress.city || !guestAddress.state || !guestAddress.zip) {
+                    toast.error('Por favor completa tu dirección de envío');
+                    return;
+                }
+            } else {
+                // Logged in user - check selected address
+                if (!selectedAddress && addressList.length === 0) {
+                    toast.error('Por favor agrega y selecciona una dirección de envío');
+                    return;
+                }
+            }
+        }
         
         // Validate only essential fields - allow optional fields to be empty
         if (!user) {
@@ -1046,13 +1160,39 @@ const OrderSummary = ({ totalPrice, items }) => {
         );
     }
 
-    const couponDiscount = calculateCouponDiscount(totalPrice);
-    const subtotal = totalPrice - couponDiscount;
+    // Calculate display values (for UI only - actual calculation is in calculateTotal)
+    const subtotal = totalPrice; // Original subtotal without coupon
+    const freeShippingThreshold = storeInfo?.free_shipping_threshold || 800;
     const isFreeShippingFromCoupon = coupon?.type === 'free_shipping';
-    const isFreeShippingFromAmount = subtotal >= 800;
+    const isFreeShippingFromAmount = subtotal >= freeShippingThreshold; // Based on original subtotal
     const isFreeShipping = isFreeShippingFromCoupon || isFreeShippingFromAmount;
+    
+    // Calculate coupon discount for display (will be recalculated in calculateTotal)
     const deliveryCost = getDeliveryCost();
+    const courierCost = getCourierCost();
     const tip = calculateTip();
+    const totalBeforeCoupon = subtotal + deliveryCost + courierCost + tip;
+    let couponDiscount = 0;
+    
+    if (coupon) {
+        // Check if there are other active promotions
+        const hasOtherPromotions = isFreeShippingFromAmount && coupon.type !== 'free_shipping';
+        
+        // If coupon is not stackable and there are other promotions, don't apply the coupon
+        if (!coupon.stackable_with_promotions && hasOtherPromotions) {
+            couponDiscount = 0; // Don't apply coupon if not stackable and other promotions exist
+        } else if (coupon.type !== 'free_shipping') {
+            if (coupon.type === 'percentage') {
+                couponDiscount = (totalBeforeCoupon * coupon.discount_value) / 100;
+                if (coupon.max_discount && couponDiscount > coupon.max_discount) {
+                    couponDiscount = coupon.max_discount;
+                }
+            } else if (coupon.type === 'fixed_amount') {
+                couponDiscount = Math.min(coupon.discount_value, totalBeforeCoupon);
+            }
+        }
+    }
+    
     const finalTotal = calculateTotal();
 
     return (
@@ -1068,7 +1208,7 @@ const OrderSummary = ({ totalPrice, items }) => {
                         placeholder="Nombre completo *" 
                         value={guestName}
                         onChange={(e) => setGuestName(e.target.value)}
-                        className='border border-slate-400 p-2 w-full my-2 outline-none rounded'
+                        className='border border-slate-400 p-3 w-full my-2 outline-none rounded text-base min-h-[44px] touch-manipulation'
                         required
                     />
                     <input 
@@ -1076,7 +1216,7 @@ const OrderSummary = ({ totalPrice, items }) => {
                         placeholder="Correo electrónico *" 
                         value={guestEmail}
                         onChange={(e) => setGuestEmail(e.target.value)}
-                        className='border border-slate-400 p-2 w-full my-2 outline-none rounded'
+                        className='border border-slate-400 p-3 w-full my-2 outline-none rounded text-base min-h-[44px] touch-manipulation'
                         required
                     />
                     <input 
@@ -1084,7 +1224,7 @@ const OrderSummary = ({ totalPrice, items }) => {
                         placeholder="Teléfono *" 
                         value={guestPhone}
                         onChange={(e) => setGuestPhone(e.target.value)}
-                        className='border border-slate-400 p-2 w-full my-2 outline-none rounded'
+                        className='border border-slate-400 p-3 w-full my-2 outline-none rounded text-base min-h-[44px] touch-manipulation'
                         required
                     />
                 </div>
@@ -1120,7 +1260,11 @@ const OrderSummary = ({ totalPrice, items }) => {
                                     ))}
                                 </select>
                             )}
-                            <button className='flex items-center gap-1 text-slate-600 mt-1 hover:text-[#00C6A2] transition-colors' onClick={() => setShowAddressModal(true)} >
+                            <button 
+                                type="button"
+                                className='flex items-center gap-1 text-slate-600 mt-1 hover:text-[#00C6A2] transition-colors min-h-[44px] px-2 touch-manipulation' 
+                                onClick={() => setShowAddressModal(true)}
+                            >
                                 Agregar Dirección <PlusIcon size={18} />
                             </button>
                         </div>
@@ -1133,16 +1277,16 @@ const OrderSummary = ({ totalPrice, items }) => {
                             placeholder="Calle y número *" 
                             value={guestAddress.street}
                             onChange={(e) => setGuestAddress({...guestAddress, street: e.target.value})}
-                            className='border border-slate-400 p-2 w-full outline-none rounded text-sm'
+                            className='border border-slate-400 p-3 w-full outline-none rounded text-base min-h-[44px] touch-manipulation'
                             required
                         />
-                        <div className='flex gap-2'>
+                        <div className='flex flex-col sm:flex-row gap-2'>
                             <input 
                                 type="text" 
                                 placeholder="Ciudad *" 
                                 value={guestAddress.city}
                                 onChange={(e) => setGuestAddress({...guestAddress, city: e.target.value})}
-                                className='border border-slate-400 p-2 w-full outline-none rounded text-sm'
+                                className='border border-slate-400 p-3 w-full outline-none rounded text-base min-h-[44px] touch-manipulation'
                                 required
                             />
                             <input 
@@ -1150,7 +1294,7 @@ const OrderSummary = ({ totalPrice, items }) => {
                                 placeholder="Estado *" 
                                 value={guestAddress.state}
                                 onChange={(e) => setGuestAddress({...guestAddress, state: e.target.value})}
-                                className='border border-slate-400 p-2 w-full outline-none rounded text-sm'
+                                className='border border-slate-400 p-3 w-full outline-none rounded text-base min-h-[44px] touch-manipulation'
                                 required
                             />
                         </div>
@@ -1159,14 +1303,14 @@ const OrderSummary = ({ totalPrice, items }) => {
                             placeholder="Código Postal *" 
                             value={guestAddress.zip}
                             onChange={(e) => setGuestAddress({...guestAddress, zip: e.target.value})}
-                            className='border border-slate-400 p-2 w-full outline-none rounded text-sm'
+                            className='border border-slate-400 p-3 w-full outline-none rounded text-base min-h-[44px] touch-manipulation'
                             required
                         />
                         <textarea 
                             placeholder="Referencias (opcional)"
                             value={guestAddress.references}
                             onChange={(e) => setGuestAddress({...guestAddress, references: e.target.value})}
-                            className='border border-slate-400 p-2 w-full outline-none rounded text-sm'
+                            className='border border-slate-400 p-3 w-full outline-none rounded text-base min-h-[80px] touch-manipulation resize-none'
                             rows="2"
                         />
                     </div>
@@ -1245,34 +1389,53 @@ const OrderSummary = ({ totalPrice, items }) => {
                                 
                                 {fulfillmentType === 'delivery' && (
                                     <div className='ml-6 mt-2 space-y-2'>
-                                        {/* Regular Delivery Options */}
-                                        {!isFreeShipping && (
-                                            <>
-                                                {deliveryOptions.map((option) => (
-                                                    <label key={option.id} className='flex items-start gap-2 cursor-pointer'>
-                                                        <input 
-                                                            type="radio" 
-                                                            name="deliveryMethod"
-                                                            checked={deliveryOption?.id === option.id && fulfillmentType === 'delivery'}
-                                                            onChange={() => {
-                                                                setDeliveryOption(option);
-                                                                setFulfillmentType('delivery');
-                                                            }}
-                                                            className='accent-gray-500 mt-1'
-                                                        />
-                                                        <div className='flex-1'>
-                                                            <div className='flex justify-between items-start'>
-                                                                <div>
-                                                                    <p className='text-slate-700 font-medium'>{option.name}</p>
-                                                                    <p className='text-xs text-slate-500'>{option.description}</p>
-                                                                </div>
-                                                                <p className='text-slate-700 font-medium'>{currency}{option.price}</p>
+                                        {/* Delivery Options - Always show, but adjust pricing for free shipping */}
+                                        {deliveryOptions.map((option) => {
+                                            // If free shipping applies and it's "same_day", make it free
+                                            // "on_demand" always costs money even with free shipping
+                                            const isSameDay = option.id === 'same_day';
+                                            const finalPrice = (isFreeShipping && isSameDay) ? 0 : option.price;
+                                            const isFree = (isFreeShipping && isSameDay);
+                                            
+                                            return (
+                                                <label key={option.id} className='flex items-start gap-2 cursor-pointer min-h-[44px]'>
+                                                    <input 
+                                                        type="radio" 
+                                                        name="deliveryMethod"
+                                                        checked={deliveryOption?.id === option.id && fulfillmentType === 'delivery'}
+                                                        onChange={() => {
+                                                            // Create option with adjusted price for free shipping
+                                                            const adjustedOption = {
+                                                                ...option,
+                                                                price: finalPrice,
+                                                                originalPrice: option.price, // Keep original for reference
+                                                            };
+                                                            setDeliveryOption(adjustedOption);
+                                                            setFulfillmentType('delivery');
+                                                        }}
+                                                        className='accent-gray-500 mt-1 w-5 h-5 touch-manipulation'
+                                                    />
+                                                    <div className='flex-1 flex items-center'>
+                                                        <div className='flex justify-between items-start w-full'>
+                                                            <div>
+                                                                <p className='text-slate-700 font-medium'>
+                                                                    {option.name}
+                                                                    {isFree && <span className='text-[#00C6A2] ml-2 text-xs font-semibold'>(Gratis)</span>}
+                                                                </p>
+                                                                <p className='text-xs text-slate-500'>{option.description}</p>
+                                                            </div>
+                                                            <div className='text-right ml-2'>
+                                                                {isFree ? (
+                                                                    <p className='text-[#00C6A2] font-medium'>Gratis</p>
+                                                                ) : (
+                                                                    <p className='text-slate-700 font-medium'>{currency}{option.price}</p>
+                                                                )}
                                                             </div>
                                                         </div>
-                                                    </label>
-                                                ))}
-                                            </>
-                                        )}
+                                                    </div>
+                                                </label>
+                                            );
+                                        })}
                                     </div>
                                 )}
                             </>
@@ -1327,8 +1490,13 @@ const OrderSummary = ({ totalPrice, items }) => {
                     
                     {isFreeShipping && fulfillmentType === 'delivery' && (
                         <div className='bg-[#00C6A2]/10 border border-[#00C6A2]/30 rounded-lg p-3 mt-3'>
-                            <p className='text-[#00C6A2] font-semibold text-sm'>🎉 ¡Envío Gratis!</p>
-                            <p className='text-xs text-slate-600 mt-1'>Tu pedido califica para envío gratis (pedidos mayores a $800 MXN)</p>
+                            <p className='text-[#00C6A2] font-semibold text-sm'>🎉 ¡Envío Gratis Disponible!</p>
+                            <p className='text-xs text-slate-600 mt-1'>
+                                Tu pedido califica para <strong>Entrega Mismo Día gratis</strong> {storeInfo?.free_shipping_threshold 
+                                    ? `(pedidos mayores a ${currency}${storeInfo.free_shipping_threshold} MXN)`
+                                    : '(pedidos mayores a $800 MXN)'}. 
+                                También puedes elegir <strong>On Demand</strong> para recibir antes pagando el costo adicional.
+                            </p>
                         </div>
                     )}
                 </div>
@@ -1399,7 +1567,7 @@ const OrderSummary = ({ totalPrice, items }) => {
                             placeholder="Ingresa el monto" 
                             value={customTip}
                             onChange={(e) => setCustomTip(e.target.value)}
-                            className='border border-slate-400 p-2 w-full outline-none rounded text-sm'
+                            className='border border-slate-400 p-3 w-full outline-none rounded text-base min-h-[44px] touch-manipulation'
                             min="0"
                             step="0.01"
                         />
@@ -1417,13 +1585,13 @@ const OrderSummary = ({ totalPrice, items }) => {
             </div>
             
             <p className='text-slate-400 text-xs my-4'>Método de Pago</p>
-            <div className='flex gap-2 items-center'>
-                <input type="radio" id="COD" onChange={() => setPaymentMethod('COD')} checked={paymentMethod === 'COD'} className='accent-gray-500' />
-                <label htmlFor="COD" className='cursor-pointer'>Contra Entrega</label>
+            <div className='flex gap-2 items-center min-h-[44px]'>
+                <input type="radio" id="COD" onChange={() => setPaymentMethod('COD')} checked={paymentMethod === 'COD'} className='accent-gray-500 w-5 h-5 touch-manipulation' />
+                <label htmlFor="COD" className='cursor-pointer flex-1 min-h-[44px] flex items-center touch-manipulation'>Contra Entrega</label>
             </div>
-            <div className='flex gap-2 items-center mt-1'>
-                <input type="radio" id="MERCADOPAGO" name='payment' onChange={() => setPaymentMethod('MERCADOPAGO')} checked={paymentMethod === 'MERCADOPAGO'} className='accent-gray-500' />
-                <label htmlFor="MERCADOPAGO" className='cursor-pointer'>Mercado Pago</label>
+            <div className='flex gap-2 items-center mt-1 min-h-[44px]'>
+                <input type="radio" id="MERCADOPAGO" name='payment' onChange={() => setPaymentMethod('MERCADOPAGO')} checked={paymentMethod === 'MERCADOPAGO'} className='accent-gray-500 w-5 h-5 touch-manipulation' />
+                <label htmlFor="MERCADOPAGO" className='cursor-pointer flex-1 min-h-[44px] flex items-center touch-manipulation'>Mercado Pago</label>
             </div>
             
             <div className='pb-4 border-b border-slate-200 mt-4'>
@@ -1448,9 +1616,23 @@ const OrderSummary = ({ totalPrice, items }) => {
                         {tip > 0 && <p>{currency}{tip.toFixed(2)}</p>}
                         {coupon && (
                             <p className="text-[#00C6A2]">
-                                -{currency}{calculateCouponDiscount(totalPrice).toFixed(2)}
-                                {coupon.type === 'free_shipping' && getDeliveryCost() > 0 && (
-                                    <span className="text-xs block">+ Envío gratis</span>
+                                {couponDiscount > 0 ? (
+                                    <>
+                                        -{currency}{couponDiscount.toFixed(2)}
+                                        {coupon.type === 'free_shipping' && getDeliveryCost() > 0 && (
+                                            <span className="text-xs block">+ Envío gratis</span>
+                                        )}
+                                    </>
+                                ) : (
+                                    <>
+                                        {coupon.type === 'free_shipping' ? (
+                                            <span className="text-xs">Envío gratis aplicado</span>
+                                        ) : (
+                                            <span className="text-xs text-slate-500">
+                                                No aplicable (hay otras promociones activas)
+                                            </span>
+                                        )}
+                                    </>
                                 )}
                             </p>
                         )}
@@ -1458,15 +1640,33 @@ const OrderSummary = ({ totalPrice, items }) => {
                 </div>
                 {
                     !coupon ? (
-                        <form onSubmit={e => toast.promise(handleCouponCode(e), { loading: 'Verificando cupón...' })} className='flex justify-center gap-3 mt-3'>
-                            <input onChange={(e) => setCouponCodeInput(e.target.value)} value={couponCodeInput} type="text" placeholder='Código de Cupón' className='border border-slate-400 p-1.5 rounded w-full outline-none' />
-                            <button className='bg-slate-600 text-white px-3 rounded hover:bg-slate-800 active:scale-95 transition-all'>Aplicar</button>
+                        <form onSubmit={e => toast.promise(handleCouponCode(e), { loading: 'Verificando cupón...' })} className='flex justify-center gap-2 sm:gap-3 mt-3'>
+                            <input 
+                                onChange={(e) => setCouponCodeInput(e.target.value)} 
+                                value={couponCodeInput} 
+                                type="text" 
+                                placeholder='Código de Cupón' 
+                                className='border border-slate-400 p-2 sm:p-1.5 rounded w-full outline-none text-base min-h-[44px] touch-manipulation' 
+                            />
+                            <button 
+                                type="submit"
+                                className='bg-slate-600 text-white px-4 sm:px-3 rounded hover:bg-slate-800 active:scale-95 transition-all min-h-[44px] min-w-[80px] touch-manipulation font-medium'
+                            >
+                                Aplicar
+                            </button>
                         </form>
                     ) : (
-                        <div className='w-full flex items-center justify-center gap-2 text-xs mt-2'>
+                        <div className='w-full flex items-center justify-center gap-2 text-xs mt-2 flex-wrap'>
                             <p>Código: <span className='font-semibold ml-1'>{coupon.code?.toUpperCase() || 'N/A'}</span></p>
                             <p>{coupon.discount_description || coupon.description}</p>
-                            <XIcon size={18} onClick={() => setCoupon('')} className='hover:text-red-700 transition cursor-pointer' />
+                            <button 
+                                type="button"
+                                onClick={() => setCoupon('')} 
+                                className='min-w-[44px] min-h-[44px] flex items-center justify-center hover:text-red-700 transition cursor-pointer touch-manipulation'
+                                aria-label="Remover cupón"
+                            >
+                                <XIcon size={18} />
+                            </button>
                         </div>
                     )
                 }
@@ -1479,7 +1679,7 @@ const OrderSummary = ({ totalPrice, items }) => {
             <button 
                 onClick={handlePlaceOrder} 
                 disabled={isPlacingOrder || processingPayment}
-                className='w-full bg-[#00C6A2] text-white py-2.5 rounded-full hover:bg-[#00B894] active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed font-medium'
+                className='w-full bg-[#00C6A2] text-white py-3 sm:py-2.5 rounded-full hover:bg-[#00B894] active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed font-medium min-h-[44px] touch-manipulation text-base shadow-md'
             >
                 {processingPayment ? 'Redirigiendo a Mercado Pago...' : isPlacingOrder ? 'Procesando...' : 'Realizar Pedido'}
             </button>

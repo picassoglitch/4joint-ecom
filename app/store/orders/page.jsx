@@ -282,7 +282,6 @@ export default function StoreOrders() {
                                 <button onClick={closeModal} className="px-8 py-3 bg-[#00C6A2] hover:bg-[#00B894] text-white rounded-full font-semibold transition-all hover:scale-105 active:scale-95 shadow-lg" >
                                     Cerrar
                                 </button>
-                            </div>
                         </div>
                     </div>
                 </div>

@@ -28,6 +28,7 @@ export default function AdminCoupons() {
         is_public: false,
         applicable_vendor_ids: [],
         max_uses: '',
+        stackable_with_promotions: true,
         expires_at: format(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd') // 30 days from now
     })
 
@@ -138,6 +139,7 @@ export default function AdminCoupons() {
                 is_public: newCoupon.is_public,
                 applicable_vendor_ids: newCoupon.applicable_vendor_ids.length > 0 ? newCoupon.applicable_vendor_ids : null,
                 max_uses: newCoupon.max_uses ? parseInt(newCoupon.max_uses) : null,
+                stackable_with_promotions: newCoupon.stackable_with_promotions,
                 expires_at: newCoupon.expires_at
             }
 
@@ -180,6 +182,7 @@ export default function AdminCoupons() {
                 is_public: false,
                 applicable_vendor_ids: [],
                 max_uses: '',
+                stackable_with_promotions: true,
                 expires_at: format(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd')
             })
 
@@ -495,6 +498,24 @@ export default function AdminCoupons() {
                             <span className="dot absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform duration-200 ease-in-out peer-checked:translate-x-5"></span>
                         </label>
                         <p>Público (visible para todos)</p>
+                    </div>
+
+                    <div className="flex gap-2 items-center">
+                        <label className="relative inline-flex items-center cursor-pointer text-gray-900 gap-3">
+                            <input 
+                                type="checkbox" 
+                                className="sr-only peer"
+                                name="stackable_with_promotions" 
+                                checked={newCoupon.stackable_with_promotions}
+                                onChange={handleChange}
+                            />
+                            <div className="w-11 h-6 bg-slate-300 rounded-full peer peer-checked:bg-green-600 transition-colors duration-200"></div>
+                            <span className="dot absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform duration-200 ease-in-out peer-checked:translate-x-5"></span>
+                        </label>
+                        <div>
+                            <p>Combinable con otras promociones</p>
+                            <p className="text-xs text-slate-500">Si está desactivado, el cupón no se aplicará si hay otras promociones activas (ej: envío gratis por monto)</p>
+                        </div>
                     </div>
                 </div>
 

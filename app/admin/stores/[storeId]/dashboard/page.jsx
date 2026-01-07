@@ -147,6 +147,8 @@ export default function AdminStoreDashboard() {
                 return
             }
 
+            console.log('🗑️ Attempting to delete order:', orderId)
+            
             const response = await fetch(`/api/orders/${orderId}`, {
                 method: 'DELETE',
                 headers: {
@@ -156,15 +158,36 @@ export default function AdminStoreDashboard() {
             })
 
             const data = await response.json()
+            console.log('🗑️ Delete response:', { status: response.status, ok: response.ok, data })
 
             if (!response.ok) {
                 throw new Error(data.error || 'Error al eliminar el pedido')
             }
 
-            toast.success('Pedido eliminado correctamente. Recargando datos...')
+            console.log('✅ Order deleted successfully, updating UI...')
             
-            // Reload all data to recalculate stats
-            await fetchStoreData()
+            // Remove order from local state immediately
+            const updatedOrders = orders.filter(order => order.id !== orderId)
+            setOrders(updatedOrders)
+            
+            // Recalculate stats immediately with updated orders
+            const updatedRevenue = updatedOrders.reduce((sum, order) => sum + order.total, 0)
+            const updatedEarnings = updatedRevenue * 0.85
+            
+            setStats({
+                totalOrders: updatedOrders.length,
+                totalRevenue: updatedRevenue,
+                totalProducts: products.length,
+                totalEarnings: updatedEarnings,
+            })
+            
+            toast.success('Pedido eliminado correctamente')
+            
+            // Reload all data to ensure consistency (with a small delay to allow DB to update)
+            setTimeout(async () => {
+                console.log('🔄 Reloading store data after deletion...')
+                await fetchStoreData()
+            }, 500)
         } catch (error) {
             console.error('Error deleting order:', error)
             toast.error(error.message || 'Error al eliminar el pedido')

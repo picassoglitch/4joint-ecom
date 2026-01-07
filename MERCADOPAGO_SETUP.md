@@ -1,11 +1,11 @@
-# Configuración de Mercado Pago
+# Configuración de Mercado Pago - Checkout Pro
 
 ## Variables de Entorno
 
 Agrega las siguientes variables a tu archivo `.env.local`:
 
 ```env
-# Mercado Pago Configuration
+# Mercado Pago Configuration - Checkout Pro
 MERCADOPAGO_ACCESS_TOKEN=APP_USR-2380007477498594-120822-d8c6b1e8c32283246dfd2ecd077d1faa-1243156223
 NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY=APP_USR-bb9c706b-c33d-4581-86ba-88f69b1a14b2
 
@@ -13,17 +13,32 @@ NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY=APP_USR-bb9c706b-c33d-4581-86ba-88f69b1a14b2
 NEXT_PUBLIC_SITE_URL=https://4joint.net
 ```
 
+## Información de la Aplicación
+
+- **User ID**: 1243156223
+- **Application ID**: 2380007477498594
+- **Producto Integrado**: Checkout Pro
+- **Public Key**: APP_USR-bb9c706b-c33d-4581-86ba-88f69b1a14b2
+- **Access Token**: APP_USR-2380007477498594-120822-d8c6b1e8c32283246dfd2ecd077d1faa-1243156223
+
 ## Configuración en Mercado Pago
 
 1. **Webhooks**: Configura el webhook en tu panel de Mercado Pago para que apunte a:
    ```
    https://4joint.net/api/mercadopago/webhook
    ```
+   
+   **Pasos para configurar el webhook:**
+   - Ve a tu panel de Mercado Pago
+   - Navega a: Tu aplicación → Webhooks
+   - Agrega la URL: `https://4joint.net/api/mercadopago/webhook`
+   - Selecciona los eventos: `payment` (pagos)
+   - Guarda la configuración
 
 2. **URLs de Retorno**: Las URLs de éxito, fallo y pendiente están configuradas automáticamente:
-   - Éxito: `https://4joint.net/payment/success`
-   - Fallo: `https://4joint.net/payment/failure`
-   - Pendiente: `https://4joint.net/payment/pending`
+   - Éxito: `https://4joint.net/order-success`
+   - Fallo: `https://4joint.net/order-success?status=failure`
+   - Pendiente: `https://4joint.net/order-success?status=pending`
 
 ## Flujo de Pago
 

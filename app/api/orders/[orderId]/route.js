@@ -48,8 +48,23 @@ export async function DELETE(request, { params }) {
 
     const userRole = user.user_metadata?.role || 'user'
 
+    // For admins, use service role key to bypass RLS
+    // For vendors, use the user's token (but vendors can no longer delete orders)
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    let deleteClient = supabase
+
+    if (userRole === 'admin' && serviceRoleKey) {
+      console.log('🔑 Using service role key for admin deletion')
+      deleteClient = createClient(supabaseUrl, serviceRoleKey, {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+      })
+    }
+
     // First verify the order exists
-    const { data: existingOrder, error: fetchError } = await supabase
+    const { data: existingOrder, error: fetchError } = await deleteClient
       .from('orders')
       .select('vendor_id')
       .eq('id', orderId)
@@ -65,31 +80,62 @@ export async function DELETE(request, { params }) {
       throw fetchError
     }
 
-    // Admin can delete any order, vendors can only delete their own orders
-    if (userRole !== 'admin' && existingOrder.vendor_id !== user.id) {
+    // Only admins can delete orders now (vendors can no longer delete)
+    if (userRole !== 'admin') {
       return NextResponse.json(
-        { error: 'No tienes permiso para eliminar este pedido' },
+        { error: 'Solo los administradores pueden eliminar pedidos' },
         { status: 403 }
       )
     }
 
     // Delete the order (order_items will be deleted automatically due to CASCADE)
-    const { error: deleteError } = await supabase
+    console.log('🗑️ Deleting order from database:', orderId)
+    const { data: deletedData, error: deleteError } = await deleteClient
       .from('orders')
       .delete()
       .eq('id', orderId)
+      .select() // Select to verify deletion
 
     if (deleteError) {
-      console.error('Error deleting order:', deleteError)
+      console.error('❌ Error deleting order:', deleteError)
       return NextResponse.json(
         { error: 'Error al eliminar el pedido', details: deleteError.message },
         { status: 500 }
       )
     }
 
+    console.log('✅ Order deleted from database:', { orderId, deletedData })
+
+    // Verify deletion by checking if order still exists (use service role for admin)
+    const verifyClient = userRole === 'admin' && serviceRoleKey 
+      ? createClient(supabaseUrl, serviceRoleKey, {
+          auth: {
+            autoRefreshToken: false,
+            persistSession: false,
+          },
+        })
+      : supabase
+    
+    const { data: verifyOrder } = await verifyClient
+      .from('orders')
+      .select('id')
+      .eq('id', orderId)
+      .single()
+
+    if (verifyOrder) {
+      console.warn('⚠️ Order still exists after deletion attempt:', orderId)
+      return NextResponse.json(
+        { error: 'El pedido no se pudo eliminar. Verifica los permisos o contacta al administrador.' },
+        { status: 500 }
+      )
+    }
+
+    console.log('✅ Order deletion verified - order no longer exists in database')
+
     return NextResponse.json({ 
       success: true,
-      message: 'Pedido eliminado correctamente'
+      message: 'Pedido eliminado correctamente',
+      deletedId: orderId
     })
   } catch (error) {
     console.error('Error in DELETE /api/orders/[orderId]:', error)

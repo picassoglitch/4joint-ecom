@@ -83,7 +83,8 @@ export default function Cart() {
 
                 <div className="flex items-start justify-between gap-6 max-lg:flex-col mt-6">
 
-                    <div className="w-full max-w-4xl bg-white/80 backdrop-blur-sm rounded-2xl border border-[#00C6A2]/10 shadow-sm hover:shadow-md transition-all overflow-hidden">
+                    {/* Desktop Table View */}
+                    <div className="w-full max-w-4xl bg-white/80 backdrop-blur-sm rounded-2xl border border-[#00C6A2]/10 shadow-sm hover:shadow-md transition-all overflow-hidden max-md:hidden">
                         <table className="w-full text-slate-600 table-auto">
                             <thead className="bg-gradient-to-r from-slate-50 to-slate-100">
                                 <tr className="max-sm:text-sm">
@@ -115,7 +116,7 @@ export default function Cart() {
                                             </td>
                                             <td className="text-center p-4 font-bold text-[#1A1A1A]">{currency}{(item.price * item.quantity).toLocaleString('es-MX')}</td>
                                             <td className="text-center max-md:hidden p-4">
-                                                <button onClick={() => handleDeleteItemFromCart(item.cartKey, item.variant)} className="text-red-500 hover:bg-red-50 p-2.5 rounded-full active:scale-95 transition-all hover:scale-110">
+                                                <button onClick={() => handleDeleteItemFromCart(item.cartKey, item.variant)} className="text-red-500 hover:bg-red-50 p-2.5 rounded-full active:scale-95 transition-all hover:scale-110 min-w-[44px] min-h-[44px] flex items-center justify-center touch-manipulation">
                                                     <Trash2Icon size={18} />
                                                 </button>
                                             </td>
@@ -125,6 +126,45 @@ export default function Cart() {
                             </tbody>
                         </table>
                     </div>
+
+                    {/* Mobile Card View */}
+                    <div className="w-full md:hidden space-y-4">
+                        {cartArray.map((item, index) => (
+                            <div key={index} className="bg-white/80 backdrop-blur-sm rounded-2xl border border-[#00C6A2]/10 shadow-sm p-4">
+                                <div className="flex gap-4 mb-4">
+                                    <div className="flex-shrink-0 bg-gradient-to-br from-slate-50 to-slate-100 size-20 rounded-xl border border-slate-200 shadow-sm flex items-center justify-center">
+                                        <Image src={item.images[0]} className="h-16 w-auto" alt={item.name} width={60} height={60} />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-semibold text-[#1A1A1A] truncate">{item.name}</p>
+                                        {item.variant && (
+                                            <p className="text-xs text-[#00C6A2] font-bold mt-1">{item.variant.name}</p>
+                                        )}
+                                        <p className="text-xs text-slate-500 mt-1">{item.category}</p>
+                                        <p className="text-sm font-bold text-[#1A1A1A] mt-2">{currency}{item.price?.toLocaleString('es-MX')}</p>
+                                    </div>
+                                    <button 
+                                        onClick={() => handleDeleteItemFromCart(item.cartKey, item.variant)} 
+                                        className="flex-shrink-0 text-red-500 hover:bg-red-50 p-2.5 rounded-full active:scale-95 transition-all min-w-[44px] min-h-[44px] flex items-center justify-center touch-manipulation"
+                                        aria-label="Eliminar producto"
+                                    >
+                                        <Trash2Icon size={20} />
+                                    </button>
+                                </div>
+                                <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                                    <div className="flex-1">
+                                        <p className="text-xs text-slate-500 mb-2">Cantidad</p>
+                                        <Counter productId={item.id} variant={item.variant} cartKey={item.cartKey} />
+                                    </div>
+                                    <div className="text-right ml-4">
+                                        <p className="text-xs text-slate-500 mb-2">Total</p>
+                                        <p className="text-base font-bold text-[#1A1A1A]">{currency}{(item.price * item.quantity).toLocaleString('es-MX')}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
                     <OrderSummary totalPrice={totalPrice} items={cartArray} />
                 </div>
             </div>

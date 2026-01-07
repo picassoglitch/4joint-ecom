@@ -150,27 +150,28 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1A1A1A]/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-[#FAFAF6] rounded-3xl p-8 max-w-md w-full mx-4 relative border border-[#00C6A2]/20 shadow-2xl animate-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1A1A1A]/80 backdrop-blur-md animate-in fade-in duration-200 p-4" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+      <div className="bg-[#FAFAF6] rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 max-w-md w-full mx-4 relative border border-[#00C6A2]/20 shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-[#1A1A1A]/60 hover:text-[#1A1A1A] transition-colors"
+          className="absolute top-3 sm:top-4 right-3 sm:right-4 text-[#1A1A1A]/60 hover:text-[#1A1A1A] transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center touch-manipulation"
+          aria-label="Cerrar"
         >
           <X size={24} />
         </button>
 
-        <div className="text-center mb-6">
-          <h2 className="text-3xl font-bold text-[#1A1A1A] mb-2">
+        <div className="text-center mb-4 sm:mb-6">
+          <h2 className="text-2xl sm:text-3xl font-bold text-[#1A1A1A] mb-2">
             {mode === 'login' ? 'Iniciar Sesión' : 'Crear Cuenta'}
           </h2>
-          <p className="text-[#1A1A1A]/60">
+          <p className="text-sm sm:text-base text-[#1A1A1A]/60">
             {mode === 'login' 
               ? 'Bienvenido de vuelta a 4joint' 
               : 'Únete a la comunidad 420'}
           </p>
         </div>
 
-        <form onSubmit={handleEmailAuth} className="space-y-4">
+        <form onSubmit={handleEmailAuth} className="space-y-3 sm:space-y-4">
           {mode === 'signup' && (
             <div>
               <label className="block text-sm font-medium text-[#1A1A1A] mb-2">
@@ -180,7 +181,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-[#00C6A2]/20 focus:border-[#00C6A2] focus:ring-2 focus:ring-[#00C6A2]/20 outline-none transition-all"
+                className="w-full px-4 py-3 rounded-xl border border-[#00C6A2]/20 focus:border-[#00C6A2] focus:ring-2 focus:ring-[#00C6A2]/20 outline-none transition-all text-base min-h-[44px] touch-manipulation"
                 placeholder="Tu nombre"
                 required={mode === 'signup'}
               />
@@ -197,7 +198,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
               onChange={handleEmailChange}
               className={`w-full px-4 py-3 rounded-xl border ${
                 emailError ? 'border-red-300 focus:border-red-500' : 'border-[#00C6A2]/20 focus:border-[#00C6A2]'
-              } focus:ring-2 focus:ring-[#00C6A2]/20 outline-none transition-all`}
+              } focus:ring-2 focus:ring-[#00C6A2]/20 outline-none transition-all text-base min-h-[44px] touch-manipulation`}
               placeholder="tu@email.com"
               required
             />
@@ -223,7 +224,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
               }}
               className={`w-full px-4 py-3 rounded-xl border ${
                 passwordError ? 'border-red-300 focus:border-red-500' : 'border-[#00C6A2]/20 focus:border-[#00C6A2]'
-              } focus:ring-2 focus:ring-[#00C6A2]/20 outline-none transition-all`}
+              } focus:ring-2 focus:ring-[#00C6A2]/20 outline-none transition-all text-base min-h-[44px] touch-manipulation`}
               placeholder="••••••••"
               required
               minLength={6}
@@ -248,7 +249,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
                 }}
                 className={`w-full px-4 py-3 rounded-xl border ${
                   passwordError ? 'border-red-300 focus:border-red-500' : 'border-[#00C6A2]/20 focus:border-[#00C6A2]'
-                } focus:ring-2 focus:ring-[#00C6A2]/20 outline-none transition-all`}
+                } focus:ring-2 focus:ring-[#00C6A2]/20 outline-none transition-all text-base min-h-[44px] touch-manipulation`}
                 placeholder="••••••••"
                 required={mode === 'signup'}
                 minLength={6}
@@ -263,16 +264,16 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
           <button
             type="submit"
             disabled={loading}
-            className="w-full px-8 py-3 bg-gradient-to-r from-[#00C6A2] to-[#00B894] hover:from-[#00B894] hover:to-[#00A885] text-white rounded-full font-bold transition-all hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+            className="w-full px-8 py-3 bg-gradient-to-r from-[#00C6A2] to-[#00B894] hover:from-[#00B894] hover:to-[#00A885] text-white rounded-full font-bold transition-all hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 min-h-[44px] touch-manipulation text-base"
           >
             {loading ? 'Cargando...' : mode === 'login' ? 'Iniciar Sesión' : 'Crear Cuenta'}
           </button>
         </form>
 
-        <div className="mt-6 text-center">
+        <div className="mt-4 sm:mt-6 text-center">
           <button
             onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}
-            className="text-sm text-[#00C6A2] hover:text-[#00B894] font-medium"
+            className="text-sm text-[#00C6A2] hover:text-[#00B894] font-medium min-h-[44px] px-4 py-2 touch-manipulation"
           >
             {mode === 'login' 
               ? '¿No tienes cuenta? Regístrate' 
