@@ -37,6 +37,14 @@ const nextConfig = {
             },
         ]
     },
+    // Fix for Turbopack metadata issues
+    experimental: {
+        turbo: {
+            resolveAlias: {
+                // Prevent favicon routing issues
+            },
+        },
+    },
 };
 
 export default nextConfig;

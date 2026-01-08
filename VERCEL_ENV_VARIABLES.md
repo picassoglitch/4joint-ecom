@@ -2,6 +2,8 @@
 
 Copia y pega estas variables en **Vercel Dashboard → Settings → Environment Variables**.
 
+> 📖 **Guía detallada paso a paso**: Ver [VERCEL_ENV_SETUP_GUIDE.md](./VERCEL_ENV_SETUP_GUIDE.md)
+
 ## ⚠️ IMPORTANTE
 
 1. Agrega **TODAS** estas variables
@@ -19,9 +21,9 @@ SUPABASE_SERVICE_ROLE_KEY=tu_service_role_key
 # Site URL (MUY IMPORTANTE)
 NEXT_PUBLIC_SITE_URL=https://4joint.net
 
-# Mercado Pago
-MERCADOPAGO_ACCESS_TOKEN=APP_USR-2380007477498594-120822-d8c6b1e8c32283246dfd2ecd077d1faa-1243156223
-NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY=APP_USR-bb9c706b-c33d-4581-86ba-88f69b1a14b2
+# Mercado Pago - Producción ✅
+MERCADOPAGO_ACCESS_TOKEN=APP_USR-3727099472713705-010815-bdff7b8923a3d8d25726e412128fb4f6-1243156223
+NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY=APP_USR-3cb1e601-a891-4742-9295-176d43914d1f
 
 # Notificaciones - Email (Resend)
 RESEND_API_KEY=re_DRJZMp9c_4c2eXFBtaa3bKRo4f74fYJvX
@@ -52,13 +54,11 @@ Después del redeploy, verifica que:
 - [ ] El sitio carga correctamente
 - [ ] La autenticación funciona
 - [ ] Los productos se cargan desde Supabase
-- [ ] Los pagos de Mercado Pago funcionan
 
 ## 🐛 Si el Build Falla
 
 Si ves errores como:
 - `Missing Supabase environment variables`
-- `MERCADOPAGO_ACCESS_TOKEN no está configurado`
 
 **Solución:**
 1. Verifica que todas las variables estén agregadas en Vercel

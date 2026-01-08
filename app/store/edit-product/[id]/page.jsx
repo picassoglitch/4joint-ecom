@@ -450,9 +450,9 @@ export default function StoreEditProduct() {
 
                 productData.variants = validVariants.map(v => {
                     const variantData = {
-                        name: v.name.trim(),
-                        price: parseFloat(v.price),
-                        mrp: parseFloat(v.mrp) || parseFloat(v.price),
+                    name: v.name.trim(),
+                    price: parseFloat(v.price),
+                    mrp: parseFloat(v.mrp) || parseFloat(v.price),
                     }
                     // Add provider_cost for GreenBoy variants
                     if (isGreenBoy) {

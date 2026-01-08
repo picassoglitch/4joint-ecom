@@ -1,5 +1,7 @@
+'use client'
+
 import { PlusIcon, SquarePenIcon, XIcon } from 'lucide-react';
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import AddressModal from './AddressModal';
 import { useSelector, useDispatch } from 'react-redux';
 import { addAddress } from '@/lib/features/address/addressSlice';
@@ -10,6 +12,7 @@ import { getCurrentUser, autoRegisterUser } from '@/lib/supabase/auth';
 import { clearCart } from '@/lib/features/cart/cartSlice';
 import { saveAddress, getUserAddresses } from '@/lib/supabase/addresses';
 import { validateCartItem } from '@/lib/utils/serviceAreaValidation';
+import MercadoPagoCheckout from './MercadoPagoCheckout';
 
 const OrderSummary = ({ totalPrice, items }) => {
 
@@ -22,6 +25,8 @@ const OrderSummary = ({ totalPrice, items }) => {
 
     const [paymentMethod, setPaymentMethod] = useState('COD');
     const [processingPayment, setProcessingPayment] = useState(false);
+    const [currentOrderId, setCurrentOrderId] = useState(null);
+    const [showPaymentBrick, setShowPaymentBrick] = useState(false);
     const [selectedAddress, setSelectedAddress] = useState(null);
     const [showAddressModal, setShowAddressModal] = useState(false);
     const [couponCodeInput, setCouponCodeInput] = useState('');
@@ -338,6 +343,8 @@ const OrderSummary = ({ totalPrice, items }) => {
         checkUser();
     }, []);
 
+    // Removed CardForm initialization - using Checkout Pro (redirection) instead
+
     // Calculate coupon discount
     const calculateCouponDiscount = (subtotal) => {
         if (!coupon) return 0;
@@ -470,9 +477,15 @@ const OrderSummary = ({ totalPrice, items }) => {
             }
         }
         
-        return totalBeforeCoupon - couponDiscount;
+        const finalTotal = totalBeforeCoupon - couponDiscount;
+        return finalTotal;
     };
-    
+
+    // Memoize the calculated total to avoid unnecessary recalculations
+    const memoizedTotal = useMemo(() => {
+        return calculateTotal();
+    }, [totalPrice, coupon, deliveryOption, tipType, tipPercentage, customTip, storeInfo, fulfillmentType]);
+
     const getDeliveryCost = () => {
         // Calculate delivery cost based on ORIGINAL subtotal (before coupon)
         const subtotal = totalPrice; // Original subtotal without coupon
@@ -742,13 +755,14 @@ const OrderSummary = ({ totalPrice, items }) => {
             });
 
             // Validate address_id - must be a valid UUID or null
+            // Guest addresses have temporary IDs that are not UUIDs, so we set to null
             let validAddressId = null;
             if (selectedAddress?.id) {
                 const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
                 if (uuidRegex.test(selectedAddress.id)) {
                     validAddressId = selectedAddress.id;
                 } else {
-                    console.warn('address_id is not a valid UUID, setting to null:', selectedAddress.id);
+                    // Guest addresses or temporary IDs - this is expected, not an error
                     validAddressId = null;
                 }
             }
@@ -855,8 +869,26 @@ const OrderSummary = ({ totalPrice, items }) => {
                 await createOrderItems(order.id, orderItems);
                 console.log('Order items created successfully');
                 
+                // Handle payment method specific logic
+                if (paymentMethod === 'MERCADOPAGO') {
+                    // For Mercado Pago Payment Brick, store order ID and show Brick
+                    setCurrentOrderId(order.id);
+                    setShowPaymentBrick(true);
+                    setProcessingPayment(false);
+                    setIsPlacingOrder(false);
+                    
+                    // Scroll to payment brick
+                    setTimeout(() => {
+                        const brickElement = document.getElementById('paymentBrick_container');
+                        if (brickElement) {
+                            brickElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
+                    }, 100);
+                    return; // Don't redirect, show embedded Brick
+                }
+                
                 // Notify vendor about new order ONLY for COD (cash on delivery)
-                // For Mercado Pago, notifications will be sent after payment confirmation via webhook
+                // For Mercado Pago, notifications will be sent after payment confirmation
                 if (paymentMethod === 'COD') {
                     try {
                         console.log(`📧 Notifying vendor ${order.vendor_id} about COD order ${order.id}`)
@@ -890,151 +922,6 @@ const OrderSummary = ({ totalPrice, items }) => {
                 throw createItemsError; // Re-throw to be caught by outer catch
             }
 
-            // If Mercado Pago, create preference and redirect
-            if (paymentMethod === 'MERCADOPAGO') {
-                setProcessingPayment(true);
-                
-                try {
-                    const payerInfo = {
-                        name: user ? (user.user_metadata?.full_name || user.email?.split('@')[0]) : guestName,
-                        surname: '',
-                        email: user ? user.email : guestEmail,
-                        phone: user ? null : guestPhone,
-                        address: !user ? {
-                            street: guestAddress.street,
-                            streetNumber: '',
-                            zip: guestAddress.zip,
-                        } : (selectedAddress ? {
-                            street: selectedAddress.address || selectedAddress.street || '',
-                            streetNumber: '',
-                            zip: selectedAddress.zip,
-                        } : null),
-                    };
-
-                    // Calculate final total with all discounts and fees
-                    const subtotal = totalPrice;
-                    const couponDiscount = calculateCouponDiscount(subtotal);
-                    const subtotalAfterCoupon = subtotal - couponDiscount;
-                    const finalTotal = calculateTotal(); // This includes delivery and tip
-                    
-                    // Calculate the discount ratio to apply proportionally to items
-                    const discountRatio = couponDiscount > 0 && subtotal > 0 ? couponDiscount / subtotal : 0;
-                    
-                    // Create preference items with coupon discount applied proportionally
-                    const preferenceItems = items.map(item => {
-                        const itemSubtotal = (item.price || item.discountedPrice || 0) * (item.quantity || 1);
-                        const itemDiscount = itemSubtotal * discountRatio;
-                        const itemPriceAfterDiscount = (itemSubtotal - itemDiscount) / (item.quantity || 1);
-                        
-                        return {
-                            name: item.name,
-                            quantity: item.quantity || 1,
-                            price: Math.max(0, parseFloat(itemPriceAfterDiscount.toFixed(2))), // Ensure price is not negative and has 2 decimals
-                        };
-                    });
-
-                    // Calculate sum of product items to verify total
-                    const productsTotal = preferenceItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-                    
-                    // Add delivery and tip as items if applicable
-                    if (deliveryCost > 0) {
-                        preferenceItems.push({
-                            name: 'Envío',
-                            quantity: 1,
-                            price: parseFloat(deliveryCost.toFixed(2)),
-                        });
-                    }
-                    if (tip > 0) {
-                        preferenceItems.push({
-                            name: 'Propina',
-                            quantity: 1,
-                            price: parseFloat(tip.toFixed(2)),
-                        });
-                    }
-                    
-                    // Calculate total from all items
-                    const itemsTotal = preferenceItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-                    
-                    // If there's a rounding difference, adjust the last item to match final total
-                    const difference = finalTotal - itemsTotal;
-                    if (Math.abs(difference) > 0.01 && preferenceItems.length > 0) {
-                        const lastItem = preferenceItems[preferenceItems.length - 1];
-                        lastItem.price = Math.max(0, parseFloat((lastItem.price + difference).toFixed(2)));
-                    }
-                    
-                    console.log('MercadoPago items:', preferenceItems);
-                    console.log('Final total calculated:', finalTotal);
-                    console.log('Items total:', preferenceItems.reduce((sum, item) => sum + (item.price * item.quantity), 0));
-
-                    const response = await fetch('/api/mercadopago/create-preference', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            items: preferenceItems,
-                            orderId: order.id,
-                            payer: payerInfo,
-                        }),
-                    });
-
-                    let responseData;
-                    try {
-                        responseData = await response.json();
-                    } catch (parseError) {
-                        console.error('Error parsing Mercado Pago response:', parseError);
-                        const text = await response.text();
-                        console.error('Raw response:', text);
-                        throw new Error('Error al procesar la respuesta de Mercado Pago. Verifica que MERCADOPAGO_ACCESS_TOKEN esté configurado en .env.local');
-                    }
-
-                    if (!response.ok) {
-                        const errorMessage = responseData?.error || responseData?.message || 'Error al crear la preferencia de pago';
-                        console.error('Mercado Pago API error:', {
-                            status: response.status,
-                            statusText: response.statusText,
-                            error: responseData?.error,
-                            details: responseData?.details,
-                            message: responseData?.message,
-                            fullResponse: responseData
-                        });
-                        throw new Error(errorMessage);
-                    }
-
-                    const { init_point, sandbox_init_point } = responseData;
-                    
-                    // Redirect to Mercado Pago checkout
-                    // Use init_point for production, sandbox_init_point only for testing
-                    // When using production credentials, init_point is the production URL
-                    window.location.href = init_point || sandbox_init_point;
-                } catch (error) {
-                    console.error('Error creating Mercado Pago preference:', error);
-                    
-                    // Extract error message more safely
-                    let errorMessage = 'Error al procesar el pago. Intenta de nuevo.';
-                    
-                    if (error?.message) {
-                        errorMessage = error.message;
-                    } else if (typeof error === 'string') {
-                        errorMessage = error;
-                    } else if (error?.error) {
-                        errorMessage = error.error;
-                    } else if (error?.details?.message) {
-                        errorMessage = error.details.message;
-                    }
-                    
-                    // Check if it's a configuration error
-                    if (errorMessage.includes('MERCADOPAGO_ACCESS_TOKEN') || errorMessage.includes('no está configurado')) {
-                        errorMessage = 'Mercado Pago no está configurado. Contacta al administrador.';
-                    }
-                    
-                    console.error('Final error message:', errorMessage);
-                    toast.error(errorMessage);
-                    setProcessingPayment(false);
-                    setIsPlacingOrder(false);
-                }
-                return;
-            }
             
             // Save address to user account if logged in and address was entered manually
             // Only try to save if user is logged in (not for guest checkout)
@@ -1196,7 +1083,15 @@ const OrderSummary = ({ totalPrice, items }) => {
     const finalTotal = calculateTotal();
 
     return (
-        <div className='w-full max-w-lg lg:max-w-[340px] bg-slate-50/30 border border-slate-200 text-slate-500 text-sm rounded-xl p-7'>
+        <div 
+            className='w-full bg-slate-50/30 border border-slate-200 text-slate-500 text-sm rounded-xl p-7'
+            style={{
+                width: '420px',
+                minWidth: '420px',
+                maxWidth: '420px',
+                flexShrink: 0,
+            }}
+        >
             <h2 className='text-xl font-medium text-slate-600'>Resumen de Pago</h2>
             
             {/* Guest Checkout Fields */}
@@ -1673,16 +1568,46 @@ const OrderSummary = ({ totalPrice, items }) => {
             </div>
             <div className='flex justify-between py-4'>
                 <p className='font-medium'>Total:</p>
-                <p className='font-bold text-lg text-right'>{currency}{finalTotal.toFixed(2)}</p>
+                <p className='font-bold text-lg text-right'>{currency}{calculateTotal().toFixed(2)}</p>
             </div>
             
-            <button 
-                onClick={handlePlaceOrder} 
-                disabled={isPlacingOrder || processingPayment}
-                className='w-full bg-[#00C6A2] text-white py-3 sm:py-2.5 rounded-full hover:bg-[#00B894] active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed font-medium min-h-[44px] touch-manipulation text-base shadow-md'
-            >
-                {processingPayment ? 'Redirigiendo a Mercado Pago...' : isPlacingOrder ? 'Procesando...' : 'Realizar Pedido'}
-            </button>
+            {/* Mercado Pago Payment Brick - shown when Mercado Pago is selected and order is created */}
+            {/* Always render the component to maintain hook order, but conditionally show it */}
+            {paymentMethod === 'MERCADOPAGO' && currentOrderId && showPaymentBrick && (
+                <div 
+                    className='my-4 p-4 border border-gray-300 rounded-lg bg-white'
+                    style={{
+                        contain: 'layout style paint',
+                        isolation: 'isolate',
+                        position: 'relative',
+                        overflow: 'visible',
+                    }}
+                >
+                    <h3 className='text-lg font-semibold mb-4'>Completa tu pago con Mercado Pago</h3>
+                    <MercadoPagoCheckout
+                        items={items
+                            .map(i => ({
+                                title: i.name || i.title || "Producto",
+                                quantity: Number(i.quantity) > 0 ? Number(i.quantity) : 1,
+                                unit_price: Number(i.price),
+                            }))
+                            .filter(i => Number.isFinite(i.unit_price) && i.unit_price > 0)}
+                        total={memoizedTotal}
+                        orderId={currentOrderId}
+                    />
+                </div>
+            )}
+
+            {/* Payment button - hidden when Payment Brick is shown */}
+            {!showPaymentBrick && (
+                <button 
+                    onClick={handlePlaceOrder} 
+                    disabled={isPlacingOrder || processingPayment}
+                    className='w-full bg-[#00C6A2] text-white py-3 sm:py-2.5 rounded-full hover:bg-[#00B894] active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed font-medium min-h-[44px] touch-manipulation text-base shadow-md'
+                >
+                    {processingPayment ? 'Procesando...' : isPlacingOrder ? 'Procesando...' : 'Realizar Pedido'}
+                </button>
+            )}
 
             {showAddressModal && <AddressModal setShowAddressModal={setShowAddressModal} />}
 

@@ -81,10 +81,11 @@ export default function Cart() {
                 {/* Title - More compact */}
                 <PageTitle heading="Mi Carrito" text="artículos en tu carrito" linkText="Agregar más" />
 
-                <div className="flex items-start justify-between gap-6 max-lg:flex-col mt-6">
+                {/* CRITICAL: Use grid layout with fixed payment column width (420px) */}
+                <div className="grid grid-cols-[1fr_420px] gap-6 max-lg:grid-cols-1 mt-6">
 
                     {/* Desktop Table View */}
-                    <div className="w-full max-w-4xl bg-white/80 backdrop-blur-sm rounded-2xl border border-[#00C6A2]/10 shadow-sm hover:shadow-md transition-all overflow-hidden max-md:hidden">
+                    <div className="w-full bg-white/80 backdrop-blur-sm rounded-2xl border border-[#00C6A2]/10 shadow-sm hover:shadow-md transition-all overflow-hidden max-md:hidden">
                         <table className="w-full text-slate-600 table-auto">
                             <thead className="bg-gradient-to-r from-slate-50 to-slate-100">
                                 <tr className="max-sm:text-sm">

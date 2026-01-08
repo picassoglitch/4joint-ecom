@@ -4,6 +4,44 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
+export async function GET(request, { params }) {
+  try {
+    const resolvedParams = await params
+    const { orderId } = resolvedParams
+
+    if (!orderId) {
+      return NextResponse.json(
+        { error: 'Order ID is required' },
+        { status: 400 }
+      )
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseAnonKey)
+
+    const { data: order, error } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('id', orderId)
+      .single()
+
+    if (error) {
+      console.error('Error fetching order:', error)
+      return NextResponse.json(
+        { error: 'Order not found' },
+        { status: 404 }
+      )
+    }
+
+    return NextResponse.json(order)
+  } catch (error) {
+    console.error('Error in GET order API:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+
 export async function DELETE(request, { params }) {
   try {
     // Next.js 15+ requires awaiting params

@@ -17,3 +17,4 @@ COMMENT ON POLICY "Vendors can delete their own products" ON public.products IS
 -- Verify RLS is enabled
 ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
 
+

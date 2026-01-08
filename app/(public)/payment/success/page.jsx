@@ -14,12 +14,14 @@ function PaymentSuccessContent() {
     const router = useRouter()
     const dispatch = useDispatch()
     const [loading, setLoading] = useState(true)
+    const [orderPaid, setOrderPaid] = useState(false)
     const paymentId = searchParams.get('payment_id')
+    const orderId = searchParams.get('orderId')
     const status = searchParams.get('status')
 
     useEffect(() => {
         // Clear cart when payment is successful
-        if (status === 'approved' && paymentId) {
+        if (paymentId) {
             dispatch(clearCart())
             
             // Clear guest checkout data from sessionStorage after successful payment
@@ -27,12 +29,29 @@ function PaymentSuccessContent() {
                 sessionStorage.removeItem('guest_checkout_address')
                 sessionStorage.removeItem('guest_checkout_info')
             }
-            
-            setLoading(false)
+        }
+
+        // Verify order payment status if orderId is provided
+        if (orderId) {
+            verifyOrderPayment(orderId)
         } else {
             setLoading(false)
         }
-    }, [paymentId, status, dispatch])
+    }, [paymentId, orderId, dispatch])
+
+    const verifyOrderPayment = async (id) => {
+        try {
+            const response = await fetch(`/api/orders/${id}`)
+            if (response.ok) {
+                const order = await response.json()
+                setOrderPaid(order.is_paid === true)
+            }
+        } catch (error) {
+            console.error('Error verifying order payment:', error)
+        } finally {
+            setLoading(false)
+        }
+    }
 
     if (loading) {
         return (
@@ -45,7 +64,7 @@ function PaymentSuccessContent() {
     return (
         <div className="min-h-screen flex items-center justify-center bg-[#FAFAF6]">
             <div className="max-w-md w-full mx-6 bg-white rounded-3xl shadow-lg p-8 text-center">
-                {status === 'approved' ? (
+                {(status === 'approved' || orderPaid) ? (
                     <>
                         <div className="flex justify-center mb-4">
                             <CheckCircle size={64} className="text-[#00C6A2]" />

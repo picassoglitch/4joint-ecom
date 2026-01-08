@@ -1,5 +1,58 @@
 @import "tailwindcss";
 
+/* Mercado Pago Payment Brick - Prevent scrollbar glitching */
+#paymentBrick_container {
+  contain: strict !important;
+  isolation: isolate !important;
+  will-change: auto !important;
+  transform: translateZ(0) !important;
+  backface-visibility: hidden !important;
+  -webkit-backface-visibility: hidden !important;
+  box-sizing: border-box !important;
+  display: block !important;
+  position: relative !important;
+  overflow: hidden !important;
+  /* Lock dimensions to prevent any changes */
+  width: 100% !important;
+  height: 620px !important;
+  min-width: 360px !important;
+  min-height: 620px !important;
+  max-width: 100% !important;
+  max-height: 620px !important;
+}
+
+#paymentBrick_container > * {
+  contain: strict !important;
+  isolation: isolate !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  overflow: hidden !important;
+  position: relative !important;
+}
+
+#paymentBrick_container iframe,
+#paymentBrick_container [id*="brick"],
+#paymentBrick_container [class*="brick"] {
+  width: 100% !important;
+  height: 620px !important;
+  min-height: 620px !important;
+  max-height: 620px !important;
+  border: none !important;
+  overflow: hidden !important;
+  position: relative !important;
+  contain: strict !important;
+  isolation: isolate !important;
+  transform: translateZ(0) !important;
+  backface-visibility: hidden !important;
+  -webkit-backface-visibility: hidden !important;
+  box-sizing: border-box !important;
+  display: block !important;
+  /* Prevent any resize */
+  resize: none !important;
+}
+
 @layer components {
     @keyframes marqueeScroll {
         0% {
@@ -70,6 +123,10 @@
         font-feature-settings: "rlig" 1, "calt" 1;
     }
     
+    html, body {
+        overflow-x: hidden;
+    }
+    
     body {
         font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
         -webkit-font-smoothing: antialiased;
@@ -92,6 +149,7 @@
         touch-action: manipulation;
         -webkit-tap-highlight-color: transparent;
     }
+    
 }
 
 .no-scrollbar::-webkit-scrollbar {
