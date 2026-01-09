@@ -169,3 +169,4 @@ Para problemas con las credenciales:
 - Verifica en el [Dashboard de Mercado Pago](https://www.mercadopago.com.mx/developers/panel)
 - Revisa la [documentación oficial](https://www.mercadopago.com.mx/developers/es/docs/checkout-pro/integration-test/test-cards)
 
+

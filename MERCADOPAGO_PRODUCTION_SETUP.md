@@ -96,3 +96,4 @@ Después de configurar todo, verifica:
 - [Documentación de Checkout Pro](https://www.mercadopago.com.mx/developers/es/docs/checkout-pro/landing)
 - [Guía de Webhooks](https://www.mercadopago.com.mx/developers/es/docs/your-integrations/notifications/webhooks)
 
+

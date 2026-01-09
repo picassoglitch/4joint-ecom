@@ -105,3 +105,4 @@ Si el problema persiste después de verificar todo lo anterior:
    - El error completo: `EXCLUDED_PAYMENT_TYPES_AND_IDS_ERROR`
    - El `preference_id` que falla (si lo tienes)
 
+

@@ -15,6 +15,8 @@ function OrderSuccessContent() {
     const [orderId, setOrderId] = useState(null)
     const [orderInfo, setOrderInfo] = useState(null)
     const [storeContact, setStoreContact] = useState(null)
+    const [telegramChatId, setTelegramChatId] = useState(null)
+    const [storeName, setStoreName] = useState(null)
     const [paymentStatus, setPaymentStatus] = useState(null) // success, failure, pending
 
     useEffect(() => {
@@ -34,20 +36,69 @@ function OrderSuccessContent() {
             const order = await getOrderById(id)
             setOrderInfo(order)
             
-            // If courier externo, get store contact info and verify it's enabled
-            if (order?.fulfillment_type === 'courierExterno' && order?.vendor_id) {
-                const { data: vendor } = await supabase
-                    .from('vendors')
-                    .select('contact, name, fulfillment_modes')
-                    .eq('id', order.vendor_id)
-                    .single()
-                
-                // Only show WhatsApp if store has courierExterno enabled and has contact
-                if (vendor?.contact && vendor?.fulfillment_modes?.courierExterno) {
-                    setStoreContact({
-                        contact: vendor.contact,
-                        storeName: vendor.name
-                    })
+            // Get vendor info for Telegram chat and WhatsApp (if courier externo)
+            if (order?.vendor_id) {
+                try {
+                    // Try to get telegram_user_id first (new field)
+                    let { data: vendor, error: vendorError } = await supabase
+                        .from('vendors')
+                        .select('telegram_user_id, telegram_chat_id, telegram_enabled, contact, name, fulfillment_modes')
+                        .eq('id', order.vendor_id)
+                        .single()
+                    
+                    // If error is about column not existing, try without telegram_user_id
+                    if (vendorError && (vendorError.message?.includes('telegram_user_id') || vendorError.code === '42703')) {
+                        console.warn('⚠️ Column telegram_user_id does not exist, trying without it. Run migration: supabase/migration_telegram_user_id.sql')
+                        const { data: vendorFallback, error: fallbackError } = await supabase
+                            .from('vendors')
+                            .select('telegram_chat_id, telegram_enabled, contact, name, fulfillment_modes')
+                            .eq('id', order.vendor_id)
+                            .single()
+                        
+                        if (!fallbackError && vendorFallback) {
+                            vendor = vendorFallback
+                            vendor.telegram_user_id = null // Set to null if column doesn't exist
+                        } else {
+                            throw fallbackError || vendorError
+                        }
+                    } else if (vendorError) {
+                        throw vendorError
+                    }
+                    
+                    if (vendor) {
+                        // Set store name
+                        setStoreName(vendor.name)
+                        
+                        // Debug: Log vendor data
+                        console.log('📦 Vendor data:', {
+                            name: vendor.name,
+                            telegram_user_id: vendor.telegram_user_id,
+                            telegram_chat_id: vendor.telegram_chat_id,
+                            telegram_enabled: vendor.telegram_enabled
+                        })
+                        
+                        // Get Telegram user_id for direct customer contact (preferred over chat_id)
+                        if (vendor.telegram_user_id) {
+                            setTelegramChatId(vendor.telegram_user_id)
+                            console.log('✅ Using telegram_user_id:', vendor.telegram_user_id)
+                        } else if (vendor.telegram_chat_id && vendor.telegram_enabled) {
+                            // Fallback to chat_id if user_id not set
+                            setTelegramChatId(vendor.telegram_chat_id)
+                            console.log('⚠️ Using telegram_chat_id as fallback:', vendor.telegram_chat_id)
+                        } else {
+                            console.log('❌ No Telegram ID found for vendor')
+                        }
+                        
+                        // If courier externo, get WhatsApp contact info
+                        if (order?.fulfillment_type === 'courierExterno' && vendor?.contact && vendor?.fulfillment_modes?.courierExterno) {
+                            setStoreContact({
+                                contact: vendor.contact,
+                                storeName: vendor.name
+                            })
+                        }
+                    }
+                } catch (error) {
+                    console.error('❌ Error fetching vendor info:', error)
                 }
             }
         } catch (error) {
@@ -113,6 +164,31 @@ function OrderSuccessContent() {
                 <p className="text-sm text-[#1A1A1A]/60 mb-8">
                     Recibirás un correo de confirmación con los detalles de tu pedido.
                 </p>
+
+                {/* Telegram chat button for order tracking */}
+                {isSuccess && telegramChatId && (
+                    <div className='bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6'>
+                        <p className='text-sm font-semibold text-blue-900 mb-2'>
+                            💬 ¿Necesitas ayuda con tu pedido?
+                        </p>
+                        <p className='text-xs text-blue-700 mb-3'>
+                            Para dar seguimiento a tu pedido, puedes comunicarte directamente con {storeName || 'la tienda'} a través de Telegram.
+                        </p>
+                        <a 
+                            href={telegramChatId.startsWith('@') 
+                                ? `https://t.me/${telegramChatId.replace('@', '')}` 
+                                : `https://t.me/${telegramChatId}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className='inline-flex items-center gap-2 bg-[#0088cc] hover:bg-[#0077b3] text-white px-4 py-2 rounded-lg text-sm font-medium transition-all hover:scale-105 active:scale-95'
+                        >
+                            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+                            </svg>
+                            Contactar por Telegram
+                        </a>
+                    </div>
+                )}
 
                 {/* WhatsApp info for courier externo */}
                 {orderInfo?.fulfillment_type === 'courierExterno' && storeContact?.contact && (

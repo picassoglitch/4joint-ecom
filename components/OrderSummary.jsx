@@ -12,7 +12,6 @@ import { getCurrentUser, autoRegisterUser } from '@/lib/supabase/auth';
 import { clearCart } from '@/lib/features/cart/cartSlice';
 import { saveAddress, getUserAddresses } from '@/lib/supabase/addresses';
 import { validateCartItem } from '@/lib/utils/serviceAreaValidation';
-import MercadoPagoCheckout from './MercadoPagoCheckout';
 
 const OrderSummary = ({ totalPrice, items }) => {
 
@@ -26,7 +25,6 @@ const OrderSummary = ({ totalPrice, items }) => {
     const [paymentMethod, setPaymentMethod] = useState('COD');
     const [processingPayment, setProcessingPayment] = useState(false);
     const [currentOrderId, setCurrentOrderId] = useState(null);
-    const [showPaymentBrick, setShowPaymentBrick] = useState(false);
     const [selectedAddress, setSelectedAddress] = useState(null);
     const [showAddressModal, setShowAddressModal] = useState(false);
     const [couponCodeInput, setCouponCodeInput] = useState('');
@@ -869,26 +867,7 @@ const OrderSummary = ({ totalPrice, items }) => {
                 await createOrderItems(order.id, orderItems);
                 console.log('Order items created successfully');
                 
-                // Handle payment method specific logic
-                if (paymentMethod === 'MERCADOPAGO') {
-                    // For Mercado Pago Payment Brick, store order ID and show Brick
-                    setCurrentOrderId(order.id);
-                    setShowPaymentBrick(true);
-                    setProcessingPayment(false);
-                    setIsPlacingOrder(false);
-                    
-                    // Scroll to payment brick
-                    setTimeout(() => {
-                        const brickElement = document.getElementById('paymentBrick_container');
-                        if (brickElement) {
-                            brickElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                        }
-                    }, 100);
-                    return; // Don't redirect, show embedded Brick
-                }
-                
-                // Notify vendor about new order ONLY for COD (cash on delivery)
-                // For Mercado Pago, notifications will be sent after payment confirmation
+                // Notify vendor about new order (COD - cash on delivery)
                 if (paymentMethod === 'COD') {
                     try {
                         console.log(`📧 Notifying vendor ${order.vendor_id} about COD order ${order.id}`)
@@ -1484,10 +1463,6 @@ const OrderSummary = ({ totalPrice, items }) => {
                 <input type="radio" id="COD" onChange={() => setPaymentMethod('COD')} checked={paymentMethod === 'COD'} className='accent-gray-500 w-5 h-5 touch-manipulation' />
                 <label htmlFor="COD" className='cursor-pointer flex-1 min-h-[44px] flex items-center touch-manipulation'>Contra Entrega</label>
             </div>
-            <div className='flex gap-2 items-center mt-1 min-h-[44px]'>
-                <input type="radio" id="MERCADOPAGO" name='payment' onChange={() => setPaymentMethod('MERCADOPAGO')} checked={paymentMethod === 'MERCADOPAGO'} className='accent-gray-500 w-5 h-5 touch-manipulation' />
-                <label htmlFor="MERCADOPAGO" className='cursor-pointer flex-1 min-h-[44px] flex items-center touch-manipulation'>Mercado Pago</label>
-            </div>
             
             <div className='pb-4 border-b border-slate-200 mt-4'>
                 <div className='flex justify-between'>
@@ -1571,35 +1546,8 @@ const OrderSummary = ({ totalPrice, items }) => {
                 <p className='font-bold text-lg text-right'>{currency}{calculateTotal().toFixed(2)}</p>
             </div>
             
-            {/* Mercado Pago Payment Brick - shown when Mercado Pago is selected and order is created */}
-            {/* Always render the component to maintain hook order, but conditionally show it */}
-            {paymentMethod === 'MERCADOPAGO' && currentOrderId && showPaymentBrick && (
-                <div 
-                    className='my-4 p-4 border border-gray-300 rounded-lg bg-white'
-                    style={{
-                        contain: 'layout style paint',
-                        isolation: 'isolate',
-                        position: 'relative',
-                        overflow: 'visible',
-                    }}
-                >
-                    <h3 className='text-lg font-semibold mb-4'>Completa tu pago con Mercado Pago</h3>
-                    <MercadoPagoCheckout
-                        items={items
-                            .map(i => ({
-                                title: i.name || i.title || "Producto",
-                                quantity: Number(i.quantity) > 0 ? Number(i.quantity) : 1,
-                                unit_price: Number(i.price),
-                            }))
-                            .filter(i => Number.isFinite(i.unit_price) && i.unit_price > 0)}
-                        total={memoizedTotal}
-                        orderId={currentOrderId}
-                    />
-                </div>
-            )}
-
-            {/* Payment button - hidden when Payment Brick is shown */}
-            {!showPaymentBrick && (
+            {/* Payment button */}
+            {(
                 <button 
                     onClick={handlePlaceOrder} 
                     disabled={isPlacingOrder || processingPayment}

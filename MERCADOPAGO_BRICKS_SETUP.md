@@ -190,3 +190,4 @@ For issues:
 4. Test with Mercado Pago test cards
 5. Check Mercado Pago dashboard for payment status
 
+

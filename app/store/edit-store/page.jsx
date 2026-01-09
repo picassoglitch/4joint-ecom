@@ -46,6 +46,7 @@ export default function EditStore() {
         telegramChatId: null,
         telegramEnabled: false,
         notificationPrefs: { newOrder: true, lowStock: true, support: true },
+        telegramUserId: null, // Telegram username or user ID for direct customer contact
     })
     const [logoFile, setLogoFile] = useState(null)
     const [logoPreview, setLogoPreview] = useState("")
@@ -105,6 +106,7 @@ export default function EditStore() {
                     telegramChatId: vendor.telegram_chat_id || null,
                     telegramEnabled: vendor.telegram_enabled || false,
                     notificationPrefs: vendor.notification_prefs || { newOrder: true, lowStock: true, support: true },
+                    telegramUserId: vendor.telegram_user_id || null,
                     freeShippingThreshold: vendor.free_shipping_threshold || 800,
                     deliveryOptions: vendor.delivery_options || [
                         { id: 'same_day', name: 'Entrega Mismo Día', price: 80, description: 'Lun-Vie antes de 8pm, Sáb antes de 6pm', enabled: true },
@@ -271,6 +273,7 @@ export default function EditStore() {
                 telegram_chat_id: storeInfo.telegramChatId || null,
                 telegram_enabled: storeInfo.telegramEnabled || false,
                 notification_prefs: storeInfo.notificationPrefs,
+                telegram_user_id: storeInfo.telegramUserId || null,
                 free_shipping_threshold: storeInfo.freeShippingThreshold || 800,
                 delivery_options: storeInfo.deliveryOptions || [],
             }
@@ -740,6 +743,44 @@ export default function EditStore() {
                                     />
                                     <span className="text-sm text-[#1A1A1A]">Mensajes de Soporte</span>
                                 </label>
+                            </div>
+                        </div>
+
+                        {/* Telegram Username for Customer Contact */}
+                        <div className="border-t border-slate-200 pt-4 mt-4">
+                            <h3 className="text-sm font-semibold text-[#1A1A1A] mb-3">Contacto Directo con Clientes</h3>
+                            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                                <p className="text-sm text-green-800 font-medium mb-2">💬 Tu Telegram para que los clientes te contacten:</p>
+                                <p className="text-xs text-green-700 mb-2">
+                                    Ingresa tu <strong>username de Telegram</strong> (ej: @tuusuario). 
+                                    Los clientes podrán contactarte directamente después de completar su compra.
+                                </p>
+                                <p className="text-xs text-green-600 mt-2">
+                                    💡 Si no tienes username, puedes configurarlo en Telegram: Configuración → Nombre de usuario
+                                </p>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-[#1A1A1A] mb-2">
+                                    Telegram Username
+                                </label>
+                                <input
+                                    type="text"
+                                    name="telegramUserId"
+                                    value={storeInfo.telegramUserId || ''}
+                                    onChange={(e) => {
+                                        let value = e.target.value.trim()
+                                        // Ensure it starts with @
+                                        if (value && !value.startsWith('@')) {
+                                            value = '@' + value
+                                        }
+                                        setStoreInfo({ ...storeInfo, telegramUserId: value })
+                                    }}
+                                    className="w-full px-4 py-3 rounded-xl border border-[#00C6A2]/20 focus:border-[#00C6A2] focus:ring-2 focus:ring-[#00C6A2]/20 outline-none transition-all"
+                                    placeholder="Ej: @tuusuario"
+                                />
+                                <p className="text-xs text-[#1A1A1A]/60 mt-1">
+                                    Username de Telegram (debe empezar con @) para contacto directo con clientes
+                                </p>
                             </div>
                         </div>
                     </div>

@@ -14,3 +14,4 @@ SET stackable_with_promotions = true
 WHERE stackable_with_promotions IS NULL;
 
 
+

@@ -32,3 +32,4 @@ COMMENT ON COLUMN vendors.delivery_options IS 'Array of delivery options configu
 -- ]
 
 
+
