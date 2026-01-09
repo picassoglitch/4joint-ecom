@@ -771,7 +771,7 @@ const OrderSummary = ({ totalPrice, items }) => {
                 total: finalTotal + courierCost, // Add courier cost to total if not included
                 payment_method: paymentMethod,
                 payment_provider: paymentMethod,
-                is_paid: paymentMethod === 'COD' ? false : false, // Will be updated after payment confirmation for Mercado Pago
+                is_paid: false, // COD orders are not paid until delivery
                 address_id: validAddressId,
                 commission: (finalTotal + courierCost) * 0.15,
                 vendor_earnings: (finalTotal + courierCost) * 0.85,
