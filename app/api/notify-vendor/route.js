@@ -24,6 +24,13 @@ export async function POST(request) {
       );
     }
 
+    if (!supabase) {
+      return NextResponse.json(
+        { error: 'Supabase not configured (missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY)' },
+        { status: 500 }
+      )
+    }
+
     // Get order details
     const { data: order, error: orderError } = await supabase
       .from('orders')
@@ -40,12 +47,35 @@ export async function POST(request) {
       .eq('id', orderId)
       .single();
 
-    if (orderError || !order) {
+    if (orderError) {
       console.error('Error fetching order:', orderError);
+      return NextResponse.json(
+        { error: 'Error fetching order', details: orderError },
+        { status: 500 }
+      );
+    }
+
+    if (!order) {
       return NextResponse.json(
         { error: 'Order not found' },
         { status: 404 }
       );
+    }
+
+    // Fetch address separately (Supabase may not have FK relationship cached for joins)
+    if (order.address_id) {
+      const { data: address, error: addressError } = await supabase
+        .from('addresses')
+        .select('*')
+        .eq('id', order.address_id)
+        .single()
+
+      if (addressError) {
+        // Non-blocking: we can still send the order notification without address details
+        console.warn('Warning fetching address for order (non-blocking):', addressError)
+      } else if (address) {
+        order.address = address
+      }
     }
 
     // Get vendor details
@@ -81,6 +111,7 @@ export async function POST(request) {
 💰 Total: $${parseFloat(order.total).toFixed(2)} MXN
 📊 Estado: ${order.status}
 💳 Método de pago: ${order.payment_method || 'COD'}
+${order.payment_method === 'COD' && order.cod_payment_preference ? `💵 Pago al recibir: ${order.cod_payment_preference === 'terminal' ? 'Tarjeta (llevar terminal)' : 'Efectivo'}` : ''}
 
 📋 Productos:
 ${orderItemsText}

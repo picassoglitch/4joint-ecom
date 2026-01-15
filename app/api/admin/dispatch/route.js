@@ -20,7 +20,6 @@ export async function GET(request) {
       .from('orders')
       .select(`
         *,
-        address:addresses(*),
         store:vendors(id, name)
       `)
       .eq('fulfillment_type', 'courierExterno')
@@ -35,7 +34,32 @@ export async function GET(request) {
       )
     }
 
-    return NextResponse.json({ orders: orders || [] })
+    // Fetch addresses separately (avoids PostgREST relationship cache dependency)
+    const addressIds = (orders || [])
+      .map(o => o.address_id)
+      .filter(Boolean)
+    const uniqueAddressIds = [...new Set(addressIds)]
+
+    let addressById = {}
+    if (uniqueAddressIds.length > 0) {
+      const { data: addresses, error: addrError } = await supabase
+        .from('addresses')
+        .select('*')
+        .in('id', uniqueAddressIds)
+
+      if (addrError) {
+        console.warn('Warning fetching addresses for dispatch (non-blocking):', addrError)
+      } else {
+        addressById = Object.fromEntries((addresses || []).map(a => [a.id, a]))
+      }
+    }
+
+    const hydratedOrders = (orders || []).map(o => ({
+      ...o,
+      address: o.address_id ? (addressById[o.address_id] || null) : null,
+    }))
+
+    return NextResponse.json({ orders: hydratedOrders })
   } catch (error) {
     console.error('Error in dispatch API:', error)
     return NextResponse.json(

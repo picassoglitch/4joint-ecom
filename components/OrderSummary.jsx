@@ -23,6 +23,8 @@ const OrderSummary = ({ totalPrice, items }) => {
     const addressList = useSelector(state => state.address.list);
 
     const [paymentMethod, setPaymentMethod] = useState('COD');
+    // COD detail for delivery: cash vs bring card terminal
+    const [codPaymentPreference, setCodPaymentPreference] = useState('cash'); // 'cash' | 'terminal'
     const [processingPayment, setProcessingPayment] = useState(false);
     const [currentOrderId, setCurrentOrderId] = useState(null);
     const [selectedAddress, setSelectedAddress] = useState(null);
@@ -581,6 +583,16 @@ const OrderSummary = ({ totalPrice, items }) => {
             toast.error('Por favor selecciona un tipo de entrega');
             return;
         }
+
+        // If COD + delivery/courier, require payment preference
+        if (
+            paymentMethod === 'COD' &&
+            (fulfillmentType === 'delivery' || fulfillmentType === 'courierExterno') &&
+            !codPaymentPreference
+        ) {
+            toast.error('Por favor selecciona si pagarás en efectivo o si necesitas terminal');
+            return;
+        }
         
         // CRITICAL VALIDATION: Must have address if delivery is required
         if (fulfillmentType === 'delivery' || fulfillmentType === 'courierExterno') {
@@ -775,6 +787,11 @@ const OrderSummary = ({ totalPrice, items }) => {
                 address_id: validAddressId,
                 commission: (finalTotal + courierCost) * 0.15,
                 vendor_earnings: (finalTotal + courierCost) * 0.85,
+                // COD detail for courier/delivery
+                cod_payment_preference:
+                    paymentMethod === 'COD' && (fulfillmentType === 'delivery' || fulfillmentType === 'courierExterno')
+                        ? codPaymentPreference
+                        : null,
                 // Guest checkout fields
                 guest_email: !user ? guestEmail : null,
                 guest_name: !user ? guestName : null,
@@ -883,8 +900,18 @@ const OrderSummary = ({ totalPrice, items }) => {
                         })
                         
                         if (!notifyResponse.ok) {
-                            const errorData = await notifyResponse.json().catch(() => ({}))
-                            console.error('❌ Notification API error:', errorData)
+                            const rawText = await notifyResponse.text().catch(() => '')
+                            let errorData = {}
+                            try {
+                                errorData = rawText ? JSON.parse(rawText) : {}
+                            } catch (_) {
+                                errorData = { raw: rawText }
+                            }
+                            console.error('❌ Notification API error:', {
+                                status: notifyResponse.status,
+                                statusText: notifyResponse.statusText,
+                                ...errorData,
+                            })
                         } else {
                             const result = await notifyResponse.json()
                             console.log('✅ Notification sent:', result)
@@ -1370,6 +1397,38 @@ const OrderSummary = ({ totalPrice, items }) => {
                                     ? `(pedidos mayores a ${currency}${storeInfo.free_shipping_threshold} MXN)`
                                     : '(pedidos mayores a $800 MXN)'}. 
                                 También puedes elegir <strong>On Demand</strong> para recibir antes pagando el costo adicional.
+                            </p>
+                        </div>
+                    )}
+
+                    {/* COD payment preference for delivery/courier */}
+                    {paymentMethod === 'COD' && (fulfillmentType === 'delivery' || fulfillmentType === 'courierExterno') && (
+                        <div className='mt-4 bg-white border border-slate-200 rounded-lg p-3'>
+                            <p className='text-slate-700 font-medium mb-2'>Pago al recibir</p>
+                            <div className='space-y-2'>
+                                <label className='flex items-center gap-2 cursor-pointer min-h-[44px]'>
+                                    <input
+                                        type="radio"
+                                        name="codPaymentPreference"
+                                        checked={codPaymentPreference === 'cash'}
+                                        onChange={() => setCodPaymentPreference('cash')}
+                                        className='accent-gray-500 w-5 h-5 touch-manipulation'
+                                    />
+                                    <span className='text-sm text-slate-700'>Efectivo</span>
+                                </label>
+                                <label className='flex items-center gap-2 cursor-pointer min-h-[44px]'>
+                                    <input
+                                        type="radio"
+                                        name="codPaymentPreference"
+                                        checked={codPaymentPreference === 'terminal'}
+                                        onChange={() => setCodPaymentPreference('terminal')}
+                                        className='accent-gray-500 w-5 h-5 touch-manipulation'
+                                    />
+                                    <span className='text-sm text-slate-700'>Tarjeta (necesito que traigan terminal)</span>
+                                </label>
+                            </div>
+                            <p className='text-xs text-slate-500 mt-2'>
+                                Esto se incluirá en el mensaje de Telegram para el repartidor.
                             </p>
                         </div>
                     )}
